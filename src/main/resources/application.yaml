@@ -1,0 +1,22 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: creditos-system
+  datasource:
+    url: jdbc:postgresql://localhost:5432/creditos_db
+    username: postgres
+    password: creditos
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+  flyway:
+    enabled: true
+
+  security:
+    jwt:
+      secret: 7e2d8c0d0e8f6d2b6c8f1a4b9e3f5c7d8a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d
+      expiration: 86400000

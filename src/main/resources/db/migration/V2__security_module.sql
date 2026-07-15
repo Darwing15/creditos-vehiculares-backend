@@ -1,0 +1,316 @@
+-- ==========================================================
+-- TABLE: roles
+-- Description:
+-- Stores the system roles used for authorization.
+-- ==========================================================
+
+CREATE TABLE roles (
+
+    id              BIGSERIAL PRIMARY KEY,
+
+    name            VARCHAR(100) NOT NULL,
+    description     TEXT,
+
+    created_by      BIGINT,
+    updated_by      BIGINT,
+
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    deleted_at      TIMESTAMPTZ,
+    is_deleted      BOOLEAN NOT NULL DEFAULT FALSE,
+
+    CONSTRAINT uk_roles_name
+        UNIQUE (name),
+
+    CONSTRAINT chk_roles_soft_delete
+        CHECK (
+            (deleted_at IS NULL AND is_deleted = FALSE)
+            OR
+            (deleted_at IS NOT NULL AND is_deleted = TRUE)
+        )
+);
+
+-- ==========================================================
+-- ROLES COMMENTS
+-- ==========================================================
+
+COMMENT ON TABLE roles IS
+'Stores system roles used for authorization.';
+
+COMMENT ON COLUMN roles.id IS
+'Primary key of the role.';
+
+COMMENT ON COLUMN roles.name IS
+'Unique role name.';
+
+COMMENT ON COLUMN roles.description IS
+'Description of the role responsibilities.';
+
+COMMENT ON COLUMN roles.created_by IS
+'Identifier of the user who created this record.';
+
+COMMENT ON COLUMN roles.updated_by IS
+'Identifier of the user who last updated this record.';
+
+COMMENT ON COLUMN roles.created_at IS
+'Creation timestamp.';
+
+COMMENT ON COLUMN roles.updated_at IS
+'Last update timestamp.';
+
+COMMENT ON COLUMN roles.deleted_at IS
+'Logical deletion timestamp.';
+
+COMMENT ON COLUMN roles.is_deleted IS
+'Logical deletion flag.';
+
+-- ==========================================================
+-- TABLE: branches
+-- Description:
+-- Stores company branches. Every operational module is scoped
+-- to a branch (users, customers, vehicles, credits, payments).
+-- IMPORTANT:
+-- branches must be created before users because users
+-- references branches(id)
+-- ==========================================================
+
+CREATE TABLE branches (
+
+    id              BIGSERIAL PRIMARY KEY,
+
+    code            VARCHAR(20) NOT NULL,
+
+    name            VARCHAR(100) NOT NULL,
+
+    address         VARCHAR(255) NOT NULL,
+
+    phone           VARCHAR(20),
+
+    email           VARCHAR(120),
+
+    -- Manager user ID.
+    -- FK added in a future migration to avoid circular dependency.
+    manager_id      BIGINT,
+
+    is_active       BOOLEAN NOT NULL DEFAULT TRUE,
+
+    created_by      BIGINT,
+
+    updated_by      BIGINT,
+
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    deleted_at      TIMESTAMPTZ,
+
+    is_deleted      BOOLEAN NOT NULL DEFAULT FALSE,
+
+    CONSTRAINT uk_branches_code
+        UNIQUE (code),
+
+    CONSTRAINT chk_branch_code_not_empty
+        CHECK (length(trim(code)) > 0),
+
+    CONSTRAINT chk_branch_name_not_empty
+        CHECK (length(trim(name)) > 0),
+
+    CONSTRAINT chk_branch_address_not_empty
+        CHECK (length(trim(address)) > 0),
+
+    CONSTRAINT chk_branches_soft_delete
+        CHECK (
+            (deleted_at IS NULL AND is_deleted = FALSE)
+            OR
+            (deleted_at IS NOT NULL AND is_deleted = TRUE)
+        )
+);
+
+-- ==========================================================
+-- BRANCHES COMMENTS
+-- ==========================================================
+
+COMMENT ON TABLE branches IS
+'Stores company branches where business operations are performed.';
+
+COMMENT ON COLUMN branches.id IS
+'Primary key of the branch.';
+
+COMMENT ON COLUMN branches.code IS
+'Unique business code of the branch.';
+
+COMMENT ON COLUMN branches.name IS
+'Business name of the branch.';
+
+COMMENT ON COLUMN branches.address IS
+'Physical address of the branch.';
+
+COMMENT ON COLUMN branches.phone IS
+'Contact phone number.';
+
+COMMENT ON COLUMN branches.email IS
+'Contact email address.';
+
+COMMENT ON COLUMN branches.manager_id IS
+'Identifier of the branch manager. Foreign key added in a future migration.';
+
+COMMENT ON COLUMN branches.is_active IS
+'Indicates whether the branch is available for business operations.';
+
+COMMENT ON COLUMN branches.created_by IS
+'Identifier of the user who created this record.';
+
+COMMENT ON COLUMN branches.updated_by IS
+'Identifier of the user who last updated this record.';
+
+COMMENT ON COLUMN branches.created_at IS
+'Creation timestamp.';
+
+COMMENT ON COLUMN branches.updated_at IS
+'Last update timestamp.';
+
+COMMENT ON COLUMN branches.deleted_at IS
+'Logical deletion timestamp.';
+
+COMMENT ON COLUMN branches.is_deleted IS
+'Logical deletion flag.';
+
+-- ==========================================================
+-- INDEXES
+-- ==========================================================
+
+-- Queries:
+-- SELECT * FROM branches
+-- WHERE is_active = true
+--   AND is_deleted = false;
+CREATE INDEX idx_branches_active
+ON branches(is_active)
+WHERE is_deleted = FALSE;
+
+-- Queries:
+-- SELECT * FROM branches
+-- WHERE manager_id = ?;
+CREATE INDEX idx_branches_manager
+ON branches(manager_id)
+WHERE is_deleted = FALSE;
+
+-- ==========================================================
+-- TABLE: users
+-- Description:
+-- Stores authenticated users of the credit management system.
+-- ==========================================================
+
+CREATE TABLE users (
+    id BIGSERIAL,
+
+    full_name VARCHAR(150) NOT NULL,
+    email VARCHAR(120) NOT NULL,
+    password VARCHAR(255) NOT NULL,
+
+    role_id BIGINT NOT NULL,
+    branch_id BIGINT NOT NULL,
+
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+
+    created_by BIGINT,
+    updated_by BIGINT,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    deleted_at TIMESTAMPTZ,
+    is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
+
+    CONSTRAINT pk_users
+        PRIMARY KEY (id),
+
+    CONSTRAINT uk_users_email
+        UNIQUE (email),
+
+    CONSTRAINT fk_users_role
+        FOREIGN KEY (role_id)
+        REFERENCES roles(id),
+
+    CONSTRAINT fk_users_branch
+        FOREIGN KEY (branch_id)
+        REFERENCES branches(id),
+
+    CONSTRAINT chk_users_full_name_not_empty
+        CHECK (length(trim(full_name)) > 0),
+
+    CONSTRAINT chk_users_email_not_empty
+        CHECK (length(trim(email)) > 0),
+
+    CONSTRAINT chk_users_password_not_empty
+        CHECK (length(trim(password)) > 0),
+
+    CONSTRAINT chk_users_soft_delete
+        CHECK (
+            (deleted_at IS NULL AND is_deleted = FALSE)
+            OR
+            (deleted_at IS NOT NULL AND is_deleted = TRUE)
+        )
+);
+
+-- ==========================================================
+-- USERS INDEXES
+-- ==========================================================
+
+CREATE INDEX idx_users_role
+    ON users(role_id)
+    WHERE is_deleted = FALSE;
+
+CREATE INDEX idx_users_branch
+    ON users(branch_id)
+    WHERE is_deleted = FALSE;
+
+CREATE INDEX idx_users_branch_active
+    ON users(branch_id, is_active)
+    WHERE is_deleted = FALSE;
+
+-- ==========================================================
+-- USERS COMMENTS
+-- ==========================================================
+
+COMMENT ON TABLE users IS
+'Stores authenticated users of the credit management system.';
+
+COMMENT ON COLUMN users.id IS
+'Primary key of the user.';
+
+COMMENT ON COLUMN users.full_name IS
+'Full name of the employee.';
+
+COMMENT ON COLUMN users.email IS
+'Unique email used for authentication.';
+
+COMMENT ON COLUMN users.password IS
+'Encrypted password using BCrypt.';
+
+COMMENT ON COLUMN users.role_id IS
+'Reference to the assigned role.';
+
+COMMENT ON COLUMN users.branch_id IS
+'Reference to the assigned branch.';
+
+COMMENT ON COLUMN users.is_active IS
+'Indicates whether the user is allowed to authenticate.';
+
+COMMENT ON COLUMN users.created_by IS
+'Identifier of the user who created this record.';
+
+COMMENT ON COLUMN users.updated_by IS
+'Identifier of the user who last updated this record.';
+
+COMMENT ON COLUMN users.created_at IS
+'Creation timestamp.';
+
+COMMENT ON COLUMN users.updated_at IS
+'Last update timestamp.';
+
+COMMENT ON COLUMN users.deleted_at IS
+'Logical deletion timestamp.';
+
+COMMENT ON COLUMN users.is_deleted IS
+'Logical deletion flag.';
