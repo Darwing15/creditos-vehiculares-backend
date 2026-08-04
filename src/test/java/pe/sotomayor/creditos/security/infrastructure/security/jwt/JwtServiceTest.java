@@ -1,23 +1,14 @@
 package pe.sotomayor.creditos.security.infrastructure.security.jwt;
 
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import pe.sotomayor.creditos.security.infrastructure.security.config.JwtProperties;
+import pe.sotomayor.creditos.security.domain.model.entity.Branch;
+import pe.sotomayor.creditos.security.domain.model.entity.Role;
+import pe.sotomayor.creditos.security.domain.model.entity.User;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Pruebas unitarias para {@link JwtService}.
- *
- * <p>
- * Verifica la generación, lectura y validación de tokens JWT
- * utilizados por la infraestructura de seguridad.
- * </p>
- *
- * @author DarwinG
- */
 class JwtServiceTest {
 
     private JwtService jwtService;
@@ -30,39 +21,41 @@ class JwtServiceTest {
         properties.setSecret(
                 "1234567890123456789012345678901234567890123456789012345678901234");
 
-        properties.setExpiration(3_600_000L);
+        properties.setExpiration(3600000L);
 
         jwtService = new JwtService(properties);
 
     }
 
     @Test
-    @DisplayName("Debe generar un token JWT válido")
-    void shouldGenerateToken() {
+    void shouldGenerateValidJwtToken() {
+
+        /* Arrange */
+
+        User user = createUser();
 
         /* Act */
 
-        String token =
-                jwtService.generateToken(
-                        "darwin@creditos.com");
+        String token = generateToken(user);
 
         /* Assert */
 
-        assertNotNull(token);
+        assertThat(token)
+                .isNotBlank();
 
-        assertFalse(token.isBlank());
+        assertThat(jwtService.isTokenValid(token))
+                .isTrue();
 
     }
 
     @Test
-    @DisplayName("Debe extraer correctamente el correo electrónico del token")
-    void shouldExtractUsername() {
+    void shouldExtractUsernameFromToken() {
 
         /* Arrange */
 
-        String token =
-                jwtService.generateToken(
-                        "darwin@creditos.com");
+        User user = createUser();
+
+        String token = generateToken(user);
 
         /* Act */
 
@@ -71,22 +64,37 @@ class JwtServiceTest {
 
         /* Assert */
 
-        assertEquals(
-                "darwin@creditos.com",
-                username
-        );
+        assertThat(username)
+                .isEqualTo(user.getEmail());
 
     }
 
     @Test
-    @DisplayName("Debe validar correctamente un token generado")
-    void shouldValidateToken() {
+    void shouldExtractTokenVersionFromToken() {
 
         /* Arrange */
 
-        String token =
-                jwtService.generateToken(
-                        "darwin@creditos.com");
+        User user = createUser();
+
+        String token = generateToken(user);
+
+        /* Act */
+
+        Long tokenVersion =
+                jwtService.extractTokenVersion(token);
+
+        /* Assert */
+
+        assertThat(tokenVersion)
+                .isEqualTo(user.getTokenVersion());
+    }
+
+    @Test
+    void shouldReturnFalseWhenTokenIsInvalid() {
+
+        /* Arrange */
+
+        String token = "invalid.jwt.token";
 
         /* Act */
 
@@ -95,47 +103,97 @@ class JwtServiceTest {
 
         /* Assert */
 
-        assertTrue(valid);
+        assertThat(valid)
+                .isFalse();
 
     }
 
     @Test
-    @DisplayName("Debe rechazar un token inválido")
-    void shouldRejectInvalidToken() {
+    void shouldGenerateDifferentTokensForSameUser() {
 
-        /* Act */
+        /* Arrange */
 
-        boolean valid =
-                jwtService.isTokenValid(
-                        "token.invalido");
-
-        /* Assert */
-
-        assertFalse(valid);
-
-    }
-
-    @Test
-    @DisplayName("Debe generar tokens diferentes en cada autenticación")
-    void shouldGenerateDifferentTokens() {
+        User user = createUser();
 
         /* Act */
 
         String token1 =
-                jwtService.generateToken(
-                        "darwin@creditos.com");
+                generateToken(user);
 
         String token2 =
-                jwtService.generateToken(
-                        "darwin@creditos.com");
+                generateToken(user);
 
         /* Assert */
 
-        assertNotEquals(
-                token1,
-                token2
-        );
+        assertThat(token1)
+                .isNotEqualTo(token2);
 
+        assertThat(jwtService.isTokenValid(token1))
+                .isTrue();
+
+        assertThat(jwtService.isTokenValid(token2))
+                .isTrue();
+
+    }
+
+    @Test
+    void shouldStoreCurrentTokenVersionInsideJwt() {
+
+        /* Arrange */
+
+        User user = createUser();
+
+        user.setTokenVersion(8L);
+
+        /* Act */
+
+        String token = generateToken(user);
+
+        /* Assert */
+
+        assertThat(jwtService.extractTokenVersion(token))
+                .isEqualTo(8L);
+    }
+
+    private String generateToken(User user) {
+
+        return jwtService.generateToken(user);
+    }
+
+    private User createUser() {
+
+        User user = new User();
+
+        user.setId(1L);
+        user.setFullName("Darwin G.");
+        user.setEmail("darwin@creditos.com");
+        user.setPassword("$2a$10$passwordHash");
+        user.setRole(createRole());
+        user.setBranch(createBranch());
+        user.setActive(true);
+        user.setTokenVersion(3L);
+
+        return user;
+    }
+
+    private Role createRole() {
+
+        Role role = new Role();
+
+        role.setId(1L);
+        role.setName("Administrador");
+
+        return role;
+    }
+
+    private Branch createBranch() {
+
+        Branch branch = new Branch();
+
+        branch.setId(1L);
+        branch.setName("Sucursal Tocache");
+
+        return branch;
     }
 
 }

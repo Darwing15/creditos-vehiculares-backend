@@ -39,17 +39,17 @@ public class CustomUserDetailsService implements UserDetailsService {
     /**
      * Obtiene la información de autenticación del usuario.
      *
-     * @param username correo electrónico del usuario
+     * @param email correo electrónico del usuario
      * @return información utilizada por Spring Security
      * @throws UsernameNotFoundException si el usuario no existe
      */
     @Override
-    public UserDetails loadUserByUsername(String username) {
+    public UserDetails loadUserByUsername(String email) {
 
-        User user = userRepository.findByEmail(username)
+        User user = userRepository.findUserWithRoleAndBranchByEmail(email)
                 .orElseThrow(() ->
                         new UsernameNotFoundException(
-                                "User not found: " + username));
+                                "User not found: " + email));
 
         return org.springframework.security.core.userdetails.User
                 .withUsername(user.getEmail())
@@ -60,6 +60,36 @@ public class CustomUserDetailsService implements UserDetailsService {
                         )))
                 .disabled(!Boolean.TRUE.equals(user.getActive()))
                 .build();
+    }
+
+    /**
+     * Obtiene la entidad de dominio correspondiente al usuario
+     * autenticado.
+     *
+     * <p>
+     * Este método está destinado exclusivamente a la infraestructura
+     * de seguridad cuando necesita acceder a información adicional
+     * del usuario que no forma parte del contrato de
+     * {@link org.springframework.security.core.userdetails.UserDetails}.
+     * </p>
+     *
+     * <p>
+     * La consulta recupera anticipadamente las asociaciones necesarias
+     * para evitar problemas de inicialización diferida durante el
+     * procesamiento del filtro JWT.
+     * </p>
+     *
+     * @param email correo electrónico del usuario
+     * @return entidad de dominio completamente inicializada
+     * @throws UsernameNotFoundException si el usuario no existe
+     */
+    public User loadDomainUser(String email) {
+
+        return userRepository
+                .findUserWithRoleAndBranchByEmail(email)
+                .orElseThrow(() ->
+                        new UsernameNotFoundException(
+                                "User not found: " + email));
     }
 
 }

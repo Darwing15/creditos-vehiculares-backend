@@ -1,6 +1,5 @@
 package pe.sotomayor.creditos.security.application.service.user;
 
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -34,15 +33,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-/**
- * Pruebas unitarias para {@link UpdateUserService}.
- *
- * <p>
- * Verifica la actualización administrativa de usuarios existentes.
- * </p>
- *
- * @author DarwinG
- */
 @ExtendWith(MockitoExtension.class)
 class UpdateUserServiceTest {
 
@@ -62,7 +52,6 @@ class UpdateUserServiceTest {
     private UpdateUserService updateUserService;
 
     @Test
-    @DisplayName("Debe actualizar un usuario cuando existe y la información es válida")
     void shouldUpdateUserWhenUserExists() {
 
         /* Arrange */
@@ -117,7 +106,7 @@ class UpdateUserServiceTest {
         );
 
         assertEquals(
-                "Juan Pérez",
+                "Juan PÃ©rez",
                 response.fullName()
         );
 
@@ -157,7 +146,6 @@ class UpdateUserServiceTest {
     }
 
     @Test
-    @DisplayName("Debe lanzar excepción cuando el usuario no existe")
     void shouldThrowResourceNotFoundExceptionWhenUserDoesNotExist() {
 
         /* Arrange */
@@ -195,7 +183,6 @@ class UpdateUserServiceTest {
     }
 
     @Test
-    @DisplayName("Debe lanzar excepción cuando el correo ya pertenece a otro usuario")
     void shouldThrowConflictExceptionWhenEmailAlreadyExists() {
 
         /* Arrange */
@@ -244,7 +231,6 @@ class UpdateUserServiceTest {
     }
 
     @Test
-    @DisplayName("Debe lanzar excepción cuando el rol no existe")
     void shouldThrowResourceNotFoundExceptionWhenRoleDoesNotExist() {
 
         /* Arrange */
@@ -299,7 +285,6 @@ class UpdateUserServiceTest {
     }
 
     @Test
-    @DisplayName("Debe lanzar excepción cuando la sucursal no existe")
     void shouldThrowResourceNotFoundExceptionWhenBranchDoesNotExist() {
 
         /* Arrange */
@@ -361,7 +346,7 @@ class UpdateUserServiceTest {
 
     private UpdateUserRequest createRequest() {
         return new UpdateUserRequest(
-                "Juan Pérez",
+                "Juan Pï¿½rez",
                 "juan@test.com",
                 2L,
                 3L
@@ -402,7 +387,7 @@ class UpdateUserServiceTest {
     private UserResponse createResponse(Long userId, Long roleId, Long branchId) {
         return new UserResponse(
                 userId,
-                "Juan Pérez",
+                "Juan PÃ©rez",
                 "juan@test.com",
                 roleId,
                 "Administrador",

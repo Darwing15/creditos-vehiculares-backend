@@ -1,6 +1,5 @@
 package pe.sotomayor.creditos.security.application.service.role;
 
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -28,22 +27,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-
-/**
- * Pruebas unitarias para {@link DeactivateRoleService}.
- *
- * <p>
- * Verifica el comportamiento del caso de uso encargado de realizar la
- * eliminación lógica de roles existentes dentro del sistema.
- * </p>
- *
- * <p>
- * Estas pruebas se ejecutan de forma aislada utilizando Mockito para simular
- * las dependencias externas.
- * </p>
- *
- * @author DarwinG
- */
 @ExtendWith(MockitoExtension.class)
 class DeactivateRoleServiceTest {
 
@@ -60,7 +43,6 @@ class DeactivateRoleServiceTest {
     private DeactivateRoleService deactivateRoleService;
 
     @Test
-    @DisplayName("Debe desactivar un rol cuando existe y no está en uso")
     void shouldDeactivateRoleWhenRoleExistsAndIsNotInUse() {
 
         /* Arrange */
@@ -111,7 +93,6 @@ class DeactivateRoleServiceTest {
     }
 
     @Test
-    @DisplayName("Debe lanzar excepción cuando el rol tiene usuarios asignados")
     void shouldThrowConflictExceptionWhenRoleHasAssignedUsers() {
 
         /* Arrange */
@@ -146,7 +127,6 @@ class DeactivateRoleServiceTest {
     }
 
     @Test
-    @DisplayName("Debe lanzar excepción cuando el rol no existe")
     void shouldThrowResourceNotFoundExceptionWhenRoleDoesNotExist() {
 
         /* Arrange */

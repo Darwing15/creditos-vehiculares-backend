@@ -1,6 +1,5 @@
 package pe.sotomayor.creditos.security.application.service.user;
 
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -23,16 +22,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-/**
- * Pruebas unitarias para {@link ListUsersService}.
- *
- * <p>
- * Verifica el comportamiento del caso de uso encargado de consultar
- * los usuarios registrados dentro del sistema.
- * </p>
- *
- * @author DarwinG
- */
 @ExtendWith(MockitoExtension.class)
 class ListUsersServiceTest {
 
@@ -46,7 +35,6 @@ class ListUsersServiceTest {
     private ListUsersService listUsersService;
 
     @Test
-    @DisplayName("Debe listar usuarios existentes correctamente")
     void shouldReturnUsersWhenUsersExist() {
 
         /* Arrange */
@@ -122,7 +110,6 @@ class ListUsersServiceTest {
     }
 
     @Test
-    @DisplayName("Debe retornar una lista vacía cuando no existen usuarios")
     void shouldReturnEmptyListWhenNoUsersExist() {
 
         /* Arrange */

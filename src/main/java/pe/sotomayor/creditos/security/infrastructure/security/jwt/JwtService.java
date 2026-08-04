@@ -9,11 +9,12 @@ import lombok.RequiredArgsConstructor;
 
 import org.springframework.stereotype.Service;
 
-import pe.sotomayor.creditos.security.infrastructure.security.config.JwtProperties;
+import pe.sotomayor.creditos.security.domain.model.entity.User;
 
 import javax.crypto.SecretKey;
 
 import java.nio.charset.StandardCharsets;
+
 import java.util.Date;
 import java.util.UUID;
 
@@ -42,10 +43,10 @@ public class JwtService {
     /**
      * Genera un token JWT para el usuario indicado.
      *
-     * @param username correo electrónico del usuario autenticado
+     * @param user usuario autenticado
      * @return token firmado
      */
-    public String generateToken(String username) {
+    public String generateToken(User user) {
 
         Date now = new Date();
 
@@ -54,7 +55,8 @@ public class JwtService {
 
         return Jwts.builder()
                 .id(UUID.randomUUID().toString())
-                .subject(username)
+                .subject(user.getEmail())
+                .claim("tv", user.getTokenVersion())
                 .issuedAt(now)
                 .expiration(expiration)
                 .signWith(getSigningKey())
@@ -71,6 +73,18 @@ public class JwtService {
 
         return extractClaims(token)
                 .getSubject();
+    }
+
+    /**
+     * Obtiene la versión del token almacenada en el JWT.
+     *
+     * @param token JWT
+     * @return versión del token
+     */
+    public Long extractTokenVersion(String token) {
+
+        return extractClaims(token)
+                .get("tv", Long.class);
     }
 
     /**

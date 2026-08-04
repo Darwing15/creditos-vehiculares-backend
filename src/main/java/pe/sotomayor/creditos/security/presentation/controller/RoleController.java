@@ -52,8 +52,8 @@ public class RoleController {
      */
     @PostMapping
     public ResponseEntity<RoleResponse> create(
-            @Valid @RequestBody CreateRoleRequest request
-    ) {
+            @Valid @RequestBody CreateRoleRequest request) {
+
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(createRoleUseCase.create(request));
@@ -83,8 +83,8 @@ public class RoleController {
     @PutMapping("/{id}")
     public ResponseEntity<RoleResponse> update(
             @PathVariable Long id,
-            @Valid @RequestBody UpdateRoleRequest request
-    ) {
+            @Valid @RequestBody UpdateRoleRequest request) {
+
         return ResponseEntity.ok(
                 updateRoleUseCase.update(id, request)
         );
@@ -98,8 +98,8 @@ public class RoleController {
      */
     @PatchMapping("/{id}/deactivate")
     public ResponseEntity<RoleResponse> deactivate(
-            @PathVariable Long id
-    ) {
+            @PathVariable Long id) {
+
         return ResponseEntity.ok(
                 deactivateRoleUseCase.deactivate(id)
         );

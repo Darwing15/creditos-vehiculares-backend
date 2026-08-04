@@ -3,7 +3,6 @@ package pe.sotomayor.creditos.security.application.mapper.role;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mapstruct.factory.Mappers;
 
@@ -12,27 +11,12 @@ import pe.sotomayor.creditos.security.application.dto.role.request.UpdateRoleReq
 import pe.sotomayor.creditos.security.application.dto.role.response.RoleResponse;
 import pe.sotomayor.creditos.security.domain.model.entity.Role;
 
-/**
- * Pruebas unitarias para {@link RoleMapper}.
- *
- * <p>
- * Verifica las conversiones entre los DTO de aplicación y la entidad de
- * dominio {@link Role}.
- * </p>
- *
- * <p>
- * Estas pruebas validan el contrato del mapper generado por MapStruct.
- * </p>
- *
- * @author DarwinG
- */
 class RoleMapperTest {
 
     private final RoleMapper roleMapper =
             Mappers.getMapper(RoleMapper.class);
 
     @Test
-    @DisplayName("Debe convertir CreateRoleRequest en Role")
     void shouldMapRequestToEntity() {
         /* Arrange */
         CreateRoleRequest request = createRequest();
@@ -47,7 +31,6 @@ class RoleMapperTest {
     }
 
     @Test
-    @DisplayName("Debe actualizar un rol existente")
     void shouldUpdateEntity() {
 
         /* Arrange */
@@ -67,7 +50,6 @@ class RoleMapperTest {
     }
 
     @Test
-    @DisplayName("Debe convertir Role en RoleResponse")
     void shouldMapEntityToResponse() {
         /* Arrange */
         Role role = createRole();

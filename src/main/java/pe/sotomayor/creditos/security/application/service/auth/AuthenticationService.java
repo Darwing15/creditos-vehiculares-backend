@@ -2,7 +2,10 @@ package pe.sotomayor.creditos.security.application.service.auth;
 
 import lombok.RequiredArgsConstructor;
 
-import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,62 +17,94 @@ import pe.sotomayor.creditos.security.application.usecase.auth.AuthenticateUserU
 import pe.sotomayor.creditos.security.domain.model.entity.User;
 import pe.sotomayor.creditos.security.domain.repository.UserRepository;
 
+import pe.sotomayor.creditos.security.infrastructure.security.jwt.JwtService;
+
 import pe.sotomayor.creditos.shared.error.ErrorCode;
-import pe.sotomayor.creditos.shared.exception.UnauthorizedException;
+import pe.sotomayor.creditos.shared.exception.ResourceNotFoundException;
 
 /**
- * Implementa el caso de uso para autenticar usuarios.
+ * Implementa el caso de uso encargado de autenticar usuarios.
  *
  * <p>
- * Coordina la validación de credenciales de acceso y la construcción
- * de la respuesta de autenticación.
- * </p>
- *
- * <p>
- * La generación del token de autenticación es delegada a la
- * infraestructura de seguridad.
+ * Delega la validación de credenciales al {@link AuthenticationManager}
+ * de Spring Security. Una vez autenticado el usuario, recupera la
+ * información completa desde la base de datos y genera el token JWT
+ * que permitirá acceder a los recursos protegidos del sistema.
  * </p>
  *
  * @author DarwinG
  */
-@RequiredArgsConstructor
 @Service
+@RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class AuthenticationService implements AuthenticateUserUseCase {
 
+    private final AuthenticationManager authenticationManager;
+
     private final UserRepository userRepository;
 
-    private final PasswordEncoder passwordEncoder;
+    private final JwtService jwtService;
 
     /**
-     * Autentica un usuario mediante correo electrónico y contraseña.
+     * Autentica un usuario y genera un token JWT.
      *
-     * @param request credenciales del usuario
+     * @param request credenciales de acceso
      * @return información del usuario autenticado
      */
     @Override
     public LoginResponse authenticate(LoginRequest request) {
 
-        User user = userRepository.findByEmail(request.email())
-                .orElseThrow(this::invalidCredentials);
+        Authentication authentication = authenticateUser(request);
 
-        if (!Boolean.TRUE.equals(user.getActive())) {
-            throw invalidCredentials();
-        }
+        User user = findAuthenticatedUser(authentication.getName());
 
-        if (!passwordEncoder.matches(
-                request.password(),
-                user.getPassword())) {
+        String token = jwtService.generateToken(user);
 
-            throw invalidCredentials();
-        }
+        return buildResponse(user, token);
+    }
 
-        /*
-         * TODO:
-         * Reemplazar por JwtService.generateToken(user)
-         * cuando se implemente la infraestructura JWT.
-         */
-        String token = "";
+    /**
+     * Autentica las credenciales utilizando Spring Security.
+     *
+     * @param request credenciales proporcionadas por el usuario
+     * @return autenticación validada
+     */
+    private Authentication authenticateUser(LoginRequest request) {
+
+        return authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(
+                        request.email(),
+                        request.password()
+                ));
+    }
+
+    /**
+     * Obtiene el usuario autenticado desde la base de datos.
+     *
+     * @param email correo electrónico autenticado
+     * @return usuario encontrado
+     * @throws ResourceNotFoundException si el usuario no existe
+     */
+    private User findAuthenticatedUser(String email) {
+
+        return userRepository
+                .findUserWithRoleAndBranchByEmail(email)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                ErrorCode.USER_NOT_FOUND,
+                                "User not found."));
+    }
+
+    /**
+     * Construye la respuesta de autenticación.
+     *
+     * @param user  usuario autenticado
+     * @param token token JWT generado
+     * @return respuesta enviada al cliente
+     */
+    private LoginResponse buildResponse(
+            User user,
+            String token) {
 
         return new LoginResponse(
                 token,
@@ -80,20 +115,6 @@ public class AuthenticationService implements AuthenticateUserUseCase {
                 user.getRole().getName(),
                 user.getBranch().getId(),
                 user.getBranch().getName()
-        );
-    }
-
-    /**
-     * Construye la excepción utilizada cuando las credenciales
-     * proporcionadas no son válidas.
-     *
-     * @return excepción de autenticación
-     */
-    private UnauthorizedException invalidCredentials() {
-
-        return new UnauthorizedException(
-                ErrorCode.INVALID_CREDENTIALS,
-                "Invalid credentials."
         );
     }
 

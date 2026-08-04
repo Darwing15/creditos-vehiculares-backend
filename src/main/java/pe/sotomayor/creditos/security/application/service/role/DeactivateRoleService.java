@@ -62,7 +62,7 @@ public class DeactivateRoleService implements DeactivateRoleUseCase {
 
             throw new ConflictException(
                     ErrorCode.ROLE_IN_USE,
-                    "Role with id '%s is currently assigned to users."
+                    "Role with id '%s' is currently assigned to users."
                             .formatted(id));
         }
 

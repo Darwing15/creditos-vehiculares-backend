@@ -1,6 +1,5 @@
 package pe.sotomayor.creditos.security.application.service.role;
 
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -22,16 +21,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-/**
- * Pruebas unitarias para {@link ListRolesService}.
- *
- * <p>
- * Verifica el comportamiento del caso de uso encargado de consultar
- * los roles registrados dentro del sistema.
- * </p>
- *
- * @author DarwinG
- */
 @ExtendWith(MockitoExtension.class)
 class ListRolesServiceTest {
 
@@ -45,7 +34,6 @@ class ListRolesServiceTest {
     private ListRolesService listRolesService;
 
     @Test
-    @DisplayName("Debe listar roles existentes correctamente")
     void shouldReturnRolesWhenRolesExist() {
 
         /* Arrange */
@@ -99,7 +87,6 @@ class ListRolesServiceTest {
     }
 
     @Test
-    @DisplayName("Debe retornar una lista vacía cuando no existen roles registrados")
     void shouldReturnEmptyListWhenNoRolesExist() {
 
         /* Arrange */
@@ -133,7 +120,7 @@ class ListRolesServiceTest {
         role.setId(id);
         role.setName(name);
         role.setDescription(
-                "Descripción del rol");
+                "DescripciÃ³n del rol");
 
         return role;
     }
@@ -145,7 +132,7 @@ class ListRolesServiceTest {
         return new RoleResponse(
                 id,
                 name,
-                "Descripción del rol");
+                "DescripciÃ³n del rol");
     }
 
 }

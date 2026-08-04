@@ -56,7 +56,7 @@ public class User extends ActivatableEntity {
 
     /**
      * Correo electrónico del usuario.
-     *
+     * <p>
      * Debe ser único dentro del sistema y será utilizado
      * como identificador para el inicio de sesión.
      */
@@ -73,7 +73,7 @@ public class User extends ActivatableEntity {
 
     /**
      * Contraseña cifrada del usuario.
-     *
+     * <p>
      * El valor almacenado corresponde al resultado del
      * algoritmo de cifrado utilizado por la aplicación.
      */
@@ -85,6 +85,28 @@ public class User extends ActivatableEntity {
             length = 255
     )
     private String password;
+
+    /**
+     * Versión del token de autenticación.
+     *
+     * <p>
+     * Este valor se incrementa cada vez que el usuario modifica su
+     * contraseña o cuando se requiere invalidar todas las sesiones
+     * activas.
+     * </p>
+     *
+     * <p>
+     * Cada token JWT almacena la versión vigente al momento de ser
+     * generado. Durante la autenticación dicha versión es comparada
+     * con la registrada en la base de datos para determinar si el
+     * token continúa siendo válido.
+     * </p>
+     */
+    @Column(
+            name = "token_version",
+            nullable = false
+    )
+    private Long tokenVersion;
 
     /**
      * Rol asignado al usuario.
@@ -105,5 +127,14 @@ public class User extends ActivatableEntity {
             nullable = false
     )
     private Branch branch;
+
+    /**
+     * Incrementa la versión del token utilizada para invalidar
+     * los JWT emitidos previamente.
+     */
+    public void increaseTokenVersion() {
+
+        this.tokenVersion++;
+    }
 
 }

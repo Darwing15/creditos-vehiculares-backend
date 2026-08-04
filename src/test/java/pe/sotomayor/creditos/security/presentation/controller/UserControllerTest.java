@@ -2,7 +2,6 @@ package pe.sotomayor.creditos.security.presentation.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,11 +9,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import org.springframework.test.web.servlet.MockMvc;
+
+import pe.sotomayor.creditos.config.TestSecurityConfig;
 
 import pe.sotomayor.creditos.security.application.dto.user.request.CreateUserRequest;
 import pe.sotomayor.creditos.security.application.dto.user.request.UpdateUserRequest;
@@ -34,18 +36,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-/**
- * Pruebas unitarias para {@link UserController}.
- *
- * <p>
- * Verifica el comportamiento de los endpoints REST encargados
- * de la gestión de usuarios.
- * </p>
- *
- * @author DarwinG
- */
 @WebMvcTest(UserController.class)
-@AutoConfigureMockMvc(addFilters = false)
+@Import(TestSecurityConfig.class)
+@AutoConfigureMockMvc
 class UserControllerTest {
 
     @Autowired
@@ -67,7 +60,6 @@ class UserControllerTest {
     private DeactivateUserUseCase deactivateUserUseCase;
 
     @Test
-    @DisplayName("Debe crear un usuario correctamente")
     void shouldCreateUser() throws Exception {
 
         CreateUserRequest request = createRequest();
@@ -96,7 +88,6 @@ class UserControllerTest {
     }
 
     @Test
-    @DisplayName("Debe listar usuarios correctamente")
     void shouldFindAllUsers() throws Exception {
 
         when(listUsersUseCase.findAll())
@@ -117,7 +108,6 @@ class UserControllerTest {
     }
 
     @Test
-    @DisplayName("Debe actualizar un usuario correctamente")
     void shouldUpdateUser() throws Exception {
 
         UpdateUserRequest request = updateRequest();
@@ -147,7 +137,6 @@ class UserControllerTest {
     }
 
     @Test
-    @DisplayName("Debe desactivar un usuario correctamente")
     void shouldDeactivateUser() throws Exception {
 
         UserResponse response = deactivateResponse();

@@ -2,7 +2,6 @@ package pe.sotomayor.creditos.security.presentation.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,11 +9,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import org.springframework.test.web.servlet.MockMvc;
+
+import pe.sotomayor.creditos.config.TestSecurityConfig;
 
 import pe.sotomayor.creditos.security.application.dto.branch.request.CreateBranchRequest;
 import pe.sotomayor.creditos.security.application.dto.branch.request.UpdateBranchRequest;
@@ -34,18 +36,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-/**
- * Pruebas unitarias para {@link BranchController}.
- *
- * <p>
- * Verifica el comportamiento HTTP del controlador encargado
- * de gestionar sucursales.
- * </p>
- *
- * @author DarwinG
- */
 @WebMvcTest(BranchController.class)
-@AutoConfigureMockMvc(addFilters = false)
+@Import(TestSecurityConfig.class)
+@AutoConfigureMockMvc
 class BranchControllerTest {
 
     @Autowired
@@ -67,7 +60,6 @@ class BranchControllerTest {
     private DeactivateBranchUseCase deactivateBranchUseCase;
 
     @Test
-    @DisplayName("Debe crear una sucursal correctamente")
     void shouldCreateBranch() throws Exception {
 
         CreateBranchRequest request = createRequest();
@@ -95,7 +87,6 @@ class BranchControllerTest {
     }
 
     @Test
-    @DisplayName("Debe listar sucursales correctamente")
     void shouldFindAllBranches() throws Exception {
 
         when(listBranchesUseCase.findAll())
@@ -114,7 +105,6 @@ class BranchControllerTest {
     }
 
     @Test
-    @DisplayName("Debe actualizar una sucursal correctamente")
     void shouldUpdateBranch() throws Exception {
 
         UpdateBranchRequest request = updateRequest();
@@ -142,7 +132,6 @@ class BranchControllerTest {
     }
 
     @Test
-    @DisplayName("Debe desactivar una sucursal correctamente")
     void shouldDeactivateBranch() throws Exception {
 
         BranchResponse response = deactivateResponse();

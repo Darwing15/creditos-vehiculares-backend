@@ -1,6 +1,5 @@
 package pe.sotomayor.creditos.security.application.service.role;
 
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -27,21 +26,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-/**
- * Pruebas unitarias para {@link UpdateRoleService}.
- *
- * <p>
- * Verifica el comportamiento del caso de uso encargado de actualizar roles
- * existentes dentro del sistema.
- * </p>
- *
- * <p>
- * Estas pruebas se ejecutan de forma aislada utilizando Mockito para simular
- * las dependencias externas.
- * </p>
- *
- * @author DarwinG
- */
 @ExtendWith(MockitoExtension.class)
 class UpdateRoleServiceTest {
 
@@ -55,7 +39,6 @@ class UpdateRoleServiceTest {
     private UpdateRoleService updateRoleService;
 
     @Test
-    @DisplayName("Debe actualizar un rol cuando el nuevo nombre no existe")
     void shouldUpdateRoleWhenNameDoesNotExist() {
 
         /* Arrange */
@@ -113,7 +96,6 @@ class UpdateRoleServiceTest {
     }
 
     @Test
-    @DisplayName("Debe lanzar excepción cuando el rol no existe")
     void shouldThrowResourceNotFoundExceptionWhenRoleDoesNotExist() {
 
         /* Arrange */
@@ -145,7 +127,6 @@ class UpdateRoleServiceTest {
     }
 
     @Test
-    @DisplayName("Debe lanzar excepción cuando el nuevo nombre del rol ya existe")
     void shouldThrowConflictExceptionWhenRoleNameAlreadyExists() {
 
         /* Arrange */

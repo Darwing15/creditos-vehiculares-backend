@@ -3,38 +3,24 @@ package pe.sotomayor.creditos.security.application.mapper.user;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
 import org.mapstruct.factory.Mappers;
 
 import pe.sotomayor.creditos.security.application.dto.user.request.CreateUserRequest;
 import pe.sotomayor.creditos.security.application.dto.user.request.UpdateUserRequest;
 import pe.sotomayor.creditos.security.application.dto.user.response.UserResponse;
+
 import pe.sotomayor.creditos.security.domain.model.entity.Branch;
 import pe.sotomayor.creditos.security.domain.model.entity.Role;
 import pe.sotomayor.creditos.security.domain.model.entity.User;
 
-/**
- * Pruebas unitarias para {@link UserMapper}.
- *
- * <p>
- * Verifica las conversiones entre los DTO de aplicación y la entidad
- * {@link User}.
- * </p>
- *
- * <p>
- * Estas pruebas validan el contrato del mapper generado por MapStruct.
- * </p>
- *
- * @author DarwinG
- */
 class UserMapperTest {
 
     private final UserMapper userMapper =
             Mappers.getMapper(UserMapper.class);
 
     @Test
-    @DisplayName("Debe convertir CreateUserRequest en User")
     void shouldMapCreateRequestToEntity() {
 
         /* Arrange */
@@ -54,7 +40,6 @@ class UserMapperTest {
     }
 
     @Test
-    @DisplayName("Debe actualizar un usuario existente")
     void shouldUpdateEntity() {
 
         /* Arrange */
@@ -74,7 +59,6 @@ class UserMapperTest {
     }
 
     @Test
-    @DisplayName("Debe convertir User en UserResponse")
     void shouldMapEntityToResponse() {
 
         /* Arrange */

@@ -19,8 +19,7 @@ public class ConflictException extends BusinessException {
      */
     public ConflictException(
             ErrorCode errorCode,
-            String message
-    ) {
+            String message) {
         super(errorCode, HttpStatus.CONFLICT, message);
     }
 
@@ -35,8 +34,7 @@ public class ConflictException extends BusinessException {
     public ConflictException(
             ErrorCode errorCode,
             String message,
-            Throwable cause
-    ) {
+            Throwable cause) {
         super(errorCode, HttpStatus.CONFLICT, message, cause);
     }
 

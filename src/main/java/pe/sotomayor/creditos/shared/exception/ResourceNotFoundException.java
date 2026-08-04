@@ -23,8 +23,7 @@ public class ResourceNotFoundException extends BusinessException {
      */
     public ResourceNotFoundException(
             ErrorCode errorCode,
-            String message
-    ) {
+            String message) {
         super(errorCode, HttpStatus.NOT_FOUND, message);
     }
 
@@ -39,8 +38,7 @@ public class ResourceNotFoundException extends BusinessException {
     public ResourceNotFoundException(
             ErrorCode errorCode,
             String message,
-            Throwable cause
-    ) {
+            Throwable cause) {
         super(errorCode, HttpStatus.NOT_FOUND, message, cause);
     }
 

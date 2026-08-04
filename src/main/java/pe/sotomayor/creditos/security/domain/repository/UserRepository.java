@@ -2,7 +2,10 @@ package pe.sotomayor.creditos.security.domain.repository;
 
 import java.util.Optional;
 
+import org.springframework.data.jpa.repository.EntityGraph;
+
 import pe.sotomayor.creditos.security.domain.model.entity.User;
+
 import pe.sotomayor.creditos.shared.persistence.BaseRepository;
 
 /**
@@ -72,5 +75,31 @@ public interface UserRepository extends BaseRepository<User> {
      * de lo contrario, {@code false}
      */
     boolean existsByBranchId(Long branchId);
+
+    /**
+     * Obtiene un usuario junto con las asociaciones requeridas durante
+     * el proceso de autenticación.
+     *
+     * <p>
+     * Recupera el usuario utilizando su correo electrónico e inicializa
+     * de forma anticipada el rol y la sucursal mediante {@code JOIN FETCH},
+     * evitando excepciones de tipo {@code LazyInitializationException}
+     * cuando Spring Security construye el contexto de autenticación.
+     * </p>
+     *
+     * <p>
+     * Este método debe utilizarse exclusivamente por la infraestructura
+     * de seguridad ({@code CustomUserDetailsService}). Para el resto de
+     * casos de uso del dominio debe emplearse {@link #findByEmail(String)}.
+     * </p>
+     *
+     * @param email correo electrónico del usuario
+     * @return usuario con el rol y la sucursal cargados
+     */
+    @EntityGraph(attributePaths = {
+            "role",
+            "branch"
+    })
+    Optional<User> findUserWithRoleAndBranchByEmail(String email);
 
 }

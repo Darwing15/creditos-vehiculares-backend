@@ -1,6 +1,5 @@
 package pe.sotomayor.creditos.security.application.service.user;
 
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -29,15 +28,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-/**
- * Pruebas unitarias para {@link DeactivateUserService}.
- *
- * <p>
- * Verifica la desactivación funcional de usuarios.
- * </p>
- *
- * @author DarwinG
- */
 @ExtendWith(MockitoExtension.class)
 class DeactivateUserServiceTest {
 
@@ -51,7 +41,6 @@ class DeactivateUserServiceTest {
     private DeactivateUserService deactivateUserService;
 
     @Test
-    @DisplayName("Debe desactivar un usuario cuando existe y está activo")
     void shouldDeactivateUserWhenUserExistsAndIsActive() {
 
         /* Arrange */
@@ -99,7 +88,6 @@ class DeactivateUserServiceTest {
     }
 
     @Test
-    @DisplayName("Debe lanzar excepción cuando el usuario no existe")
     void shouldThrowResourceNotFoundExceptionWhenUserDoesNotExist() {
 
         /* Arrange */
@@ -134,7 +122,6 @@ class DeactivateUserServiceTest {
     }
 
     @Test
-    @DisplayName("Debe lanzar excepción cuando el usuario ya está inactivo")
     void shouldThrowConflictExceptionWhenUserIsAlreadyInactive() {
 
         /* Arrange */
@@ -178,7 +165,7 @@ class DeactivateUserServiceTest {
 
         user.setId(id);
 
-        user.setFullName("Juan Pérez");
+        user.setFullName("Juan Pï¿½rez");
 
         user.setEmail("juan@test.com");
 
@@ -190,7 +177,7 @@ class DeactivateUserServiceTest {
     private UserResponse createResponse(Long userId) {
         return new UserResponse(
                 userId,
-                "Juan Pérez",
+                "Juan PÃ©rez",
                 "juan@test.com",
                 1L,
                 "Administrador",

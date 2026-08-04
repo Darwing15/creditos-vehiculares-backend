@@ -1,6 +1,5 @@
 package pe.sotomayor.creditos.security.application.service.branch;
 
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -30,16 +29,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-/**
- * Pruebas unitarias para {@link UpdateBranchService}.
- *
- * <p>
- * Verifica el comportamiento del caso de uso encargado de actualizar
- * sucursales existentes.
- * </p>
- *
- * @author DarwinG
- */
 @ExtendWith(MockitoExtension.class)
 class UpdateBranchServiceTest {
 
@@ -53,7 +42,6 @@ class UpdateBranchServiceTest {
     private UpdateBranchService updateBranchService;
 
     @Test
-    @DisplayName("Debe actualizar una sucursal cuando existe")
     void shouldUpdateBranchWhenExists() {
 
         /* Arrange */
@@ -115,7 +103,6 @@ class UpdateBranchServiceTest {
     }
 
     @Test
-    @DisplayName("Debe lanzar excepción cuando la sucursal no existe")
     void shouldThrowResourceNotFoundExceptionWhenBranchDoesNotExist() {
 
         /* Arrange */

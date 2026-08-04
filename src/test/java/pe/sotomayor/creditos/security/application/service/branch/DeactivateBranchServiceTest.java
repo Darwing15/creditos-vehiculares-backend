@@ -1,6 +1,5 @@
 package pe.sotomayor.creditos.security.application.service.branch;
 
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -31,16 +30,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-/**
- * Pruebas unitarias para {@link DeactivateBranchService}.
- *
- * <p>
- * Verifica el comportamiento del caso de uso encargado de realizar
- * la desactivación lógica de sucursales existentes.
- * </p>
- *
- * @author DarwinG
- */
 @ExtendWith(MockitoExtension.class)
 class DeactivateBranchServiceTest {
 
@@ -57,7 +46,6 @@ class DeactivateBranchServiceTest {
     private DeactivateBranchService deactivateBranchService;
 
     @Test
-    @DisplayName("Debe desactivar una sucursal cuando existe y no tiene usuarios asignados")
     void shouldDeactivateBranchWhenBranchExistsAndHasNoUsers() {
 
         /* Arrange */
@@ -118,7 +106,6 @@ class DeactivateBranchServiceTest {
     }
 
     @Test
-    @DisplayName("Debe lanzar excepción cuando la sucursal tiene usuarios asignados")
     void shouldThrowConflictExceptionWhenBranchHasUsers() {
 
         /* Arrange */
@@ -158,7 +145,6 @@ class DeactivateBranchServiceTest {
     }
 
     @Test
-    @DisplayName("Debe lanzar excepción cuando la sucursal no existe")
     void shouldThrowResourceNotFoundExceptionWhenBranchDoesNotExist() {
 
         /* Arrange */
@@ -227,3 +213,4 @@ class DeactivateBranchServiceTest {
     }
 
 }
+

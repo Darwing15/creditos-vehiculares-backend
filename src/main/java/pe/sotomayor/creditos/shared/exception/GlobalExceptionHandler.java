@@ -3,14 +3,23 @@ package pe.sotomayor.creditos.shared.exception;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
+
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+
+import org.springframework.security.authentication.BadCredentialsException;
+
 import org.springframework.validation.FieldError;
+
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+import org.springframework.web.servlet.resource.NoResourceFoundException;
+
 import pe.sotomayor.creditos.shared.error.ErrorCode;
 import pe.sotomayor.creditos.shared.response.ApiError;
 
@@ -48,8 +57,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiError> handleBusinessException(
             BusinessException exception,
-            HttpServletRequest request
-    ) {
+            HttpServletRequest request) {
 
         return buildResponse(
                 exception.getHttpStatus(),
@@ -69,8 +77,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiError> handleMethodArgumentNotValid(
             MethodArgumentNotValidException exception,
-            HttpServletRequest request
-    ) {
+            HttpServletRequest request) {
 
         String message = exception.getBindingResult()
                 .getFieldErrors()
@@ -96,8 +103,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ApiError> handleConstraintViolation(
             ConstraintViolationException exception,
-            HttpServletRequest request
-    ) {
+            HttpServletRequest request) {
 
         String message = exception.getConstraintViolations()
                 .stream()
@@ -122,8 +128,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiError> handleHttpMessageNotReadable(
             HttpMessageNotReadableException exception,
-            HttpServletRequest request
-    ) {
+            HttpServletRequest request) {
 
         return buildResponse(
                 HttpStatus.BAD_REQUEST,
@@ -131,6 +136,69 @@ public class GlobalExceptionHandler {
                 "El cuerpo de la solicitud contiene un formato inválido.",
                 request
         );
+    }
+
+    /**
+     * Maneja credenciales de autenticación inválidas.
+     *
+     * <p>
+     * Este método captura la excepción lanzada por Spring Security cuando
+     * el correo electrónico o la contraseña proporcionados no corresponden
+     * a un usuario válido del sistema.
+     * </p>
+     *
+     * <p>
+     * La respuesta mantiene el contrato estándar de errores de la aplicación,
+     * evitando exponer información sensible sobre el proceso interno de
+     * autenticación.
+     * </p>
+     *
+     * @param exception excepción producida por Spring Security
+     * @param request   solicitud HTTP
+     * @return respuesta estandarizada con código HTTP 401
+     */
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<ApiError> handleBadCredentials(
+            BadCredentialsException exception,
+            HttpServletRequest request) {
+
+        return buildResponse(
+                HttpStatus.UNAUTHORIZED,
+                ErrorCode.INVALID_CREDENTIALS,
+                "Invalid credentials.",
+                request
+        );
+    }
+
+    /**
+     * Maneja solicitudes hacia recursos estáticos inexistentes.
+     *
+     * <p>
+     * Este método captura las peticiones realizadas a recursos que no
+     * existen dentro de la aplicación (por ejemplo, una URL incorrecta
+     * para Swagger UI) y responde con un código HTTP 404.
+     * </p>
+     *
+     * @param ex      excepción producida por Spring MVC
+     * @param request solicitud HTTP
+     * @return respuesta de recurso no encontrado
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiError> handleNoResourceFound(
+            NoResourceFoundException ex,
+            HttpServletRequest request) {
+
+        ApiError response = ApiError.builder()
+                .status(HttpStatus.NOT_FOUND.value())
+                .error(HttpStatus.NOT_FOUND.getReasonPhrase())
+                .errorCode(ErrorCode.RESOURCE_NOT_FOUND.name())
+                .message("El recurso solicitado no existe.")
+                .path(request.getRequestURI())
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(response);
     }
 
     /**
@@ -143,8 +211,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiError> handleUnexpectedException(
             Exception exception,
-            HttpServletRequest request
-    ) {
+            HttpServletRequest request) {
 
         log.error("Error inesperado durante el procesamiento de la solicitud.", exception);
 
@@ -169,8 +236,7 @@ public class GlobalExceptionHandler {
             HttpStatus status,
             ErrorCode errorCode,
             String message,
-            HttpServletRequest request
-    ) {
+            HttpServletRequest request) {
 
         return ResponseEntity.status(status)
                 .body(buildApiError(status, errorCode, message, request));
@@ -190,8 +256,7 @@ public class GlobalExceptionHandler {
             HttpStatus status,
             ErrorCode errorCode,
             String message,
-            HttpServletRequest request
-    ) {
+            HttpServletRequest request) {
 
         return ApiError.builder()
                 .timestamp(LocalDateTime.now())
@@ -201,7 +266,6 @@ public class GlobalExceptionHandler {
                 .message(message)
                 .path(request.getRequestURI())
                 .build();
-
     }
 
     /**
@@ -216,7 +280,6 @@ public class GlobalExceptionHandler {
                 fieldError.getField(),
                 fieldError.getDefaultMessage()
         );
-
     }
 
 }

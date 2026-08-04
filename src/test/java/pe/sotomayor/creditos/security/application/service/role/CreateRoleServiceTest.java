@@ -1,7 +1,5 @@
 package pe.sotomayor.creditos.security.application.service.role;
 
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -24,26 +22,12 @@ import pe.sotomayor.creditos.shared.exception.ConflictException;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * Pruebas unitarias para {@link CreateRoleService}.
- *
- * <p>
- * Verifica el comportamiento del caso de uso encargado de registrar nuevos
- * roles dentro del sistema.
- * </p>
- *
- * <p>
- * Estas pruebas se ejecutan de forma aislada utilizando Mockito para simular
- * las dependencias externas.
- * </p>
- *
- * @author DarwinG
- */
 @ExtendWith(MockitoExtension.class)
 class CreateRoleServiceTest {
 
@@ -56,13 +40,7 @@ class CreateRoleServiceTest {
     @InjectMocks
     private CreateRoleService createRoleService;
 
-    @BeforeEach
-    void setUp() {
-
-    }
-
     @Test
-    @DisplayName("Debe crear un rol cuando el nombre no existe")
     void shouldCreateRoleWhenNameDoesNotExist() {
 
         /* Arrange */
@@ -95,7 +73,6 @@ class CreateRoleServiceTest {
     }
 
     @Test
-    @DisplayName("Debe lanzar ConflictException cuando el nombre del rol ya existe")
     void shouldThrowConflictExceptionWhenRoleNameAlreadyExists() {
 
         /* Arrange */

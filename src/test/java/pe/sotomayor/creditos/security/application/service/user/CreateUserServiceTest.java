@@ -1,6 +1,5 @@
 package pe.sotomayor.creditos.security.application.service.user;
 
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -36,17 +35,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-
-/**
- * Pruebas unitarias para {@link CreateUserService}.
- *
- * <p>
- * Verifica el comportamiento del caso de uso encargado de registrar usuarios
- * dentro del módulo de seguridad.
- * </p>
- *
- * @author DarwinG
- */
 @ExtendWith(MockitoExtension.class)
 class CreateUserServiceTest {
 
@@ -69,7 +57,6 @@ class CreateUserServiceTest {
     private CreateUserService createUserService;
 
     @Test
-    @DisplayName("Debe crear usuario cuando los datos son válidos")
     void shouldCreateUserWhenDataIsValid() {
 
         /* Arrange */
@@ -158,7 +145,6 @@ class CreateUserServiceTest {
     }
 
     @Test
-    @DisplayName("Debe lanzar excepción cuando el correo del usuario ya existe")
     void shouldThrowConflictExceptionWhenEmailAlreadyExists() {
 
         /* Arrange */
@@ -194,7 +180,6 @@ class CreateUserServiceTest {
     }
 
     @Test
-    @DisplayName("Debe lanzar excepción cuando el rol no existe")
     void shouldThrowResourceNotFoundExceptionWhenRoleDoesNotExist() {
 
         /* Arrange */
@@ -236,7 +221,6 @@ class CreateUserServiceTest {
     }
 
     @Test
-    @DisplayName("Debe lanzar excepción cuando la sucursal no existe")
     void shouldThrowResourceNotFoundExceptionWhenBranchDoesNotExist() {
 
         /* Arrange */

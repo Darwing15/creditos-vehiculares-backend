@@ -1,7 +1,5 @@
 package pe.sotomayor.creditos.security.application.service.role;
 
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -21,25 +19,11 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-/**
- * Pruebas unitarias para {@link GetRoleService}.
- *
- * <p>
- * Verifica el comportamiento del caso de uso encargado de obtener un rol
- * mediante su identificador.
- * </p>
- *
- * <p>
- * Estas pruebas se ejecutan de forma aislada utilizando Mockito para simular
- * las dependencias externas.
- * </p>
- *
- * @author DarwinG
- */
 @ExtendWith(MockitoExtension.class)
 class GetRoleServiceTest {
 
@@ -52,13 +36,7 @@ class GetRoleServiceTest {
     @InjectMocks
     private GetRoleService getRoleService;
 
-    @BeforeEach
-    void setUp() {
-
-    }
-
     @Test
-    @DisplayName("Debe obtener un rol cuando el identificador existe")
     void shouldReturnRoleWhenIdExists() {
 
         /* Arrange */
@@ -87,7 +65,6 @@ class GetRoleServiceTest {
     }
 
     @Test
-    @DisplayName("Debe lanzar una excepción cuando el rol no existe")
     void shouldThrowResourceNotFoundExceptionWhenRoleDoesNotExist() {
 
         /* Arrange */

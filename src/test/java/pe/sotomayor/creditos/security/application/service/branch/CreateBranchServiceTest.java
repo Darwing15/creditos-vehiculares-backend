@@ -1,6 +1,5 @@
 package pe.sotomayor.creditos.security.application.service.branch;
 
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -27,16 +26,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-/**
- * Pruebas unitarias para {@link CreateBranchService}.
- *
- * <p>
- * Verifica el comportamiento del caso de uso encargado de registrar
- * nuevas sucursales dentro del sistema.
- * </p>
- *
- * @author DarwinG
- */
 @ExtendWith(MockitoExtension.class)
 class CreateBranchServiceTest {
 
@@ -50,7 +39,6 @@ class CreateBranchServiceTest {
     private CreateBranchService createBranchService;
 
     @Test
-    @DisplayName("Debe crear una sucursal cuando el código no existe")
     void shouldCreateBranchWhenCodeDoesNotExist() {
 
         /* Arrange */
@@ -109,7 +97,6 @@ class CreateBranchServiceTest {
     }
 
     @Test
-    @DisplayName("Debe lanzar excepción cuando el código de sucursal ya existe")
     void shouldThrowConflictExceptionWhenCodeAlreadyExists() {
 
         /* Arrange */

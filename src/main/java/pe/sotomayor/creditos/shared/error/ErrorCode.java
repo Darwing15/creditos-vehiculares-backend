@@ -46,6 +46,8 @@ public enum ErrorCode {
 
     ACCOUNT_DISABLED,
 
+    NEW_PASSWORD_MUST_BE_DIFFERENT,
+
     // ==========================================================
     // CUSTOMERS
     // ==========================================================

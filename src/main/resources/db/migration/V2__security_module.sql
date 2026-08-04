@@ -207,6 +207,7 @@ CREATE TABLE users (
     full_name VARCHAR(150) NOT NULL,
     email VARCHAR(120) NOT NULL,
     password VARCHAR(255) NOT NULL,
+    token_version BIGINT NOT NULL DEFAULT 1,
 
     role_id BIGINT NOT NULL,
     branch_id BIGINT NOT NULL,

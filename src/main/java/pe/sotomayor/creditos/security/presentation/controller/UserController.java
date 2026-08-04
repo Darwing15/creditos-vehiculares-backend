@@ -53,8 +53,8 @@ public class UserController {
     public ResponseEntity<UserResponse> create(
             @Valid
             @RequestBody
-            CreateUserRequest request
-    ) {
+            CreateUserRequest request) {
+
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(createUserUseCase.create(request));
@@ -73,8 +73,8 @@ public class UserController {
             @PathVariable Long id,
             @Valid
             @RequestBody
-            UpdateUserRequest request
-    ) {
+            UpdateUserRequest request) {
+
         return ResponseEntity
                 .ok(updateUserUseCase.update(id, request));
 
@@ -101,8 +101,8 @@ public class UserController {
      */
     @PatchMapping("/{id}/deactivate")
     public ResponseEntity<UserResponse> deactivate(
-            @PathVariable Long id
-    ) {
+            @PathVariable Long id) {
+
         return ResponseEntity
                 .ok(deactivateUserUseCase.deactivate(id));
 

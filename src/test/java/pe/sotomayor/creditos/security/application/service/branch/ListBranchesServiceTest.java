@@ -1,6 +1,5 @@
 package pe.sotomayor.creditos.security.application.service.branch;
 
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -23,16 +22,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-/**
- * Pruebas unitarias para {@link ListBranchesService}.
- *
- * <p>
- * Verifica el comportamiento del caso de uso encargado de consultar
- * las sucursales registradas dentro del sistema.
- * </p>
- *
- * @author DarwinG
- */
 @ExtendWith(MockitoExtension.class)
 class ListBranchesServiceTest {
 
@@ -46,7 +35,6 @@ class ListBranchesServiceTest {
     private ListBranchesService listBranchesService;
 
     @Test
-    @DisplayName("Debe listar sucursales existentes correctamente")
     void shouldReturnBranchesWhenBranchesExist() {
 
         /* Arrange */
@@ -128,7 +116,6 @@ class ListBranchesServiceTest {
     }
 
     @Test
-    @DisplayName("Debe retornar lista vacía cuando no existen sucursales")
     void shouldReturnEmptyListWhenNoBranchesExist() {
 
         /* Arrange */

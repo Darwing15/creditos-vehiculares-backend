@@ -53,8 +53,8 @@ public class BranchController {
     public ResponseEntity<BranchResponse> create(
             @Valid
             @RequestBody
-            CreateBranchRequest request
-    ) {
+            CreateBranchRequest request) {
+
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(createBranchUseCase.create(request));
@@ -85,8 +85,8 @@ public class BranchController {
             @PathVariable Long id,
             @Valid
             @RequestBody
-            UpdateBranchRequest request
-    ) {
+            UpdateBranchRequest request) {
+
         return ResponseEntity.ok(
                 updateBranchUseCase.update(id, request)
         );
@@ -100,8 +100,8 @@ public class BranchController {
      */
     @PatchMapping("/{id}/deactivate")
     public ResponseEntity<BranchResponse> deactivate(
-            @PathVariable Long id
-    ) {
+            @PathVariable Long id) {
+
         return ResponseEntity.ok(
                 deactivateBranchUseCase.deactivate(id)
         );

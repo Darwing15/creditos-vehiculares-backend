@@ -2,7 +2,6 @@ package pe.sotomayor.creditos.security.presentation.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,6 +21,8 @@ import pe.sotomayor.creditos.security.application.dto.auth.request.LoginRequest;
 import pe.sotomayor.creditos.security.application.dto.auth.response.LoginResponse;
 
 import pe.sotomayor.creditos.security.application.usecase.auth.AuthenticateUserUseCase;
+import pe.sotomayor.creditos.security.application.usecase.auth.ChangePasswordUseCase;
+import pe.sotomayor.creditos.security.application.usecase.auth.GetAuthenticatedUserUseCase;
 
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -31,20 +32,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/**
- * Pruebas unitarias para {@link AuthController}.
- *
- * <p>
- * Verifica el comportamiento del endpoint encargado de autenticar
- * usuarios y emitir tokens JWT.
- * </p>
- *
- * @author DarwinG
- */
 @WebMvcTest(AuthController.class)
 @Import(TestSecurityConfig.class)
 @AutoConfigureMockMvc
-class AuthControllerTest {
+class AuthLoginControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
@@ -55,9 +46,16 @@ class AuthControllerTest {
     @MockitoBean
     private AuthenticateUserUseCase authenticateUserUseCase;
 
+    @MockitoBean
+    private GetAuthenticatedUserUseCase getAuthenticatedUserUseCase;
+
+    @MockitoBean
+    private ChangePasswordUseCase changePasswordUseCase;
+
     @Test
-    @DisplayName("Debe autenticar un usuario correctamente")
     void shouldAuthenticateUser() throws Exception {
+
+        /* Arrange */
 
         LoginRequest request = loginRequest();
 
@@ -65,6 +63,8 @@ class AuthControllerTest {
 
         when(authenticateUserUseCase.authenticate(request))
                 .thenReturn(response);
+
+        /* Act & Assert */
 
         mockMvc.perform(
                         post("/api/auth/login")
@@ -93,7 +93,6 @@ class AuthControllerTest {
     }
 
     @Test
-    @DisplayName("Debe retornar 400 cuando el correo es inválido")
     void shouldReturnBadRequestWhenEmailIsInvalid() throws Exception {
 
         LoginRequest request = loginRequestBadEmail();
@@ -108,7 +107,6 @@ class AuthControllerTest {
     }
 
     @Test
-    @DisplayName("Debe retornar 400 cuando la contraseña está vacía")
     void shouldReturnBadRequestWhenPasswordIsBlank() throws Exception {
 
         LoginRequest request = loginRequestBadPassword();
@@ -122,7 +120,6 @@ class AuthControllerTest {
     }
 
     @Test
-    @DisplayName("Debe retornar 400 cuando el cuerpo de la solicitud es inválido")
     void shouldReturnBadRequestWhenRequestBodyIsInvalid() throws Exception {
 
         mockMvc.perform(

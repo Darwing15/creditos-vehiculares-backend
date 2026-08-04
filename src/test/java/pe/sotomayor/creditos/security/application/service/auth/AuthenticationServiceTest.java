@@ -1,6 +1,5 @@
 package pe.sotomayor.creditos.security.application.service.auth;
 
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -8,8 +7,10 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.authentication.AuthenticationManager;
 
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import pe.sotomayor.creditos.security.application.dto.auth.request.LoginRequest;
 import pe.sotomayor.creditos.security.application.dto.auth.response.LoginResponse;
 
@@ -19,54 +20,58 @@ import pe.sotomayor.creditos.security.domain.model.entity.User;
 
 import pe.sotomayor.creditos.security.domain.repository.UserRepository;
 
+import pe.sotomayor.creditos.security.infrastructure.security.jwt.JwtService;
+
 import pe.sotomayor.creditos.shared.error.ErrorCode;
-import pe.sotomayor.creditos.shared.exception.UnauthorizedException;
+import pe.sotomayor.creditos.shared.exception.ResourceNotFoundException;
 
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
-/**
- * Pruebas unitarias para {@link AuthenticationService}.
- *
- * <p>
- * Verifica el comportamiento del caso de uso encargado de autenticar
- * usuarios mediante correo electrónico y contraseña.
- * </p>
- *
- * @author DarwinG
- */
 @ExtendWith(MockitoExtension.class)
 class AuthenticationServiceTest {
+
+    @Mock
+    private AuthenticationManager authenticationManager;
 
     @Mock
     private UserRepository userRepository;
 
     @Mock
-    private PasswordEncoder passwordEncoder;
+    private JwtService jwtService;
 
     @InjectMocks
     private AuthenticationService authenticationService;
 
     @Test
-    @DisplayName("Debe autenticar un usuario con credenciales válidas")
-    void shouldAuthenticateUserSuccessfully() {
+    void shouldAuthenticateUserWhenCredentialsAreValid() {
 
         /* Arrange */
 
         LoginRequest request = createRequest();
 
+        Authentication authentication = createAuthentication();
+
         User user = createUser();
 
-        when(userRepository.findByEmail(request.email()))
+        when(authenticationManager.authenticate(any(
+                UsernamePasswordAuthenticationToken.class)))
+                .thenReturn(authentication);
+
+        when(userRepository.findUserWithRoleAndBranchByEmail(
+                request.email()))
                 .thenReturn(Optional.of(user));
 
-        when(passwordEncoder.matches(
-                request.password(),
-                user.getPassword()))
-                .thenReturn(true);
+        when(jwtService.generateToken(user))
+                .thenReturn("jwt-token");
 
         /* Act */
 
@@ -75,185 +80,112 @@ class AuthenticationServiceTest {
 
         /* Assert */
 
-        assertNotNull(response);
+        assertThat(response).isNotNull();
 
-        assertEquals(
-                1L,
-                response.userId()
-        );
+        assertThat(response.token())
+                .isEqualTo("jwt-token");
 
-        assertEquals(
-                "Darwin G.",
-                response.fullName()
-        );
+        assertThat(response.userId())
+                .isEqualTo(user.getId());
 
-        assertEquals(
-                "darwin@creditos.com",
-                response.email()
-        );
+        assertThat(response.fullName())
+                .isEqualTo(user.getFullName());
 
-        assertEquals(
-                1L,
-                response.roleId()
-        );
+        assertThat(response.email())
+                .isEqualTo(user.getEmail());
 
-        assertEquals(
-                "Administrador",
-                response.roleName()
-        );
+        assertThat(response.roleId())
+                .isEqualTo(user.getRole().getId());
 
-        assertEquals(
-                1L,
-                response.branchId()
-        );
+        assertThat(response.roleName())
+                .isEqualTo(user.getRole().getName());
 
-        assertEquals(
-                "Sucursal Tocache",
-                response.branchName()
-        );
+        assertThat(response.branchId())
+                .isEqualTo(user.getBranch().getId());
+
+        assertThat(response.branchName())
+                .isEqualTo(user.getBranch().getName());
+
+        verify(authenticationManager)
+                .authenticate(any(
+                        UsernamePasswordAuthenticationToken.class));
 
         verify(userRepository)
-                .findByEmail(request.email());
+                .findUserWithRoleAndBranchByEmail(request.email());
 
-        verify(passwordEncoder)
-                .matches(request.password(), user.getPassword());
+        verify(jwtService)
+                .generateToken(user);
 
         verifyNoMoreInteractions(
+                authenticationManager,
                 userRepository,
-                passwordEncoder
-        );
+                jwtService);
     }
 
     @Test
-    @DisplayName("Debe lanzar excepción cuando el correo no existe")
-    void shouldThrowExceptionWhenUserDoesNotExist() {
+    void shouldThrowResourceNotFoundExceptionWhenAuthenticatedUserDoesNotExist() {
 
         /* Arrange */
 
         LoginRequest request = createRequest();
 
-        when(userRepository.findByEmail(request.email()))
+        Authentication authentication = createAuthentication();
+
+        when(authenticationManager.authenticate(any(
+                UsernamePasswordAuthenticationToken.class)))
+                .thenReturn(authentication);
+
+        when(userRepository.findUserWithRoleAndBranchByEmail(
+                request.email()))
                 .thenReturn(Optional.empty());
 
-        /* Act & Assert */
+        /* Act */
 
-        UnauthorizedException exception =
-                assertThrows(
-                        UnauthorizedException.class,
-                        () -> authenticationService.authenticate(request)
-                );
+        Throwable exception = catchThrowable(() ->
+                authenticationService.authenticate(request));
 
-        assertEquals(
-                ErrorCode.INVALID_CREDENTIALS,
-                exception.getErrorCode()
-        );
+        /* Assert */
+
+        assertThat(exception)
+                .isInstanceOf(ResourceNotFoundException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.USER_NOT_FOUND);
+
+        verify(authenticationManager)
+                .authenticate(any(
+                        UsernamePasswordAuthenticationToken.class));
 
         verify(userRepository)
-                .findByEmail(request.email());
+                .findUserWithRoleAndBranchByEmail(request.email());
+
+        verifyNoInteractions(jwtService);
 
         verifyNoMoreInteractions(
-                userRepository,
-                passwordEncoder
-        );
+                authenticationManager,
+                userRepository);
     }
 
     @Test
-    @DisplayName("Debe lanzar excepción cuando el usuario está inactivo")
-    void shouldThrowExceptionWhenUserIsInactive() {
+    void shouldGenerateJwtForAuthenticatedUser() {
 
         /* Arrange */
 
         LoginRequest request = createRequest();
 
-        User user = createUser();
-
-        user.setActive(false);
-
-        when(userRepository.findByEmail(request.email()))
-                .thenReturn(Optional.of(user));
-
-        /* Act & Assert */
-
-        UnauthorizedException exception =
-                assertThrows(
-                        UnauthorizedException.class,
-                        () -> authenticationService.authenticate(request)
-                );
-
-        assertEquals(
-                ErrorCode.INVALID_CREDENTIALS,
-                exception.getErrorCode()
-        );
-
-        verify(userRepository)
-                .findByEmail(request.email());
-
-        verifyNoMoreInteractions(
-                userRepository,
-                passwordEncoder
-        );
-    }
-
-    @Test
-    @DisplayName("Debe lanzar excepción cuando la contraseña es incorrecta")
-    void shouldThrowExceptionWhenPasswordIsInvalid() {
-
-        /* Arrange */
-
-        LoginRequest request = createRequest();
+        Authentication authentication = createAuthentication();
 
         User user = createUser();
 
-        when(userRepository.findByEmail(request.email()))
+        when(authenticationManager.authenticate(any(
+                UsernamePasswordAuthenticationToken.class)))
+                .thenReturn(authentication);
+
+        when(userRepository.findUserWithRoleAndBranchByEmail(
+                request.email()))
                 .thenReturn(Optional.of(user));
 
-        when(passwordEncoder.matches(
-                request.password(),
-                user.getPassword()))
-                .thenReturn(false);
-
-        /* Act & Assert */
-
-        UnauthorizedException exception =
-                assertThrows(
-                        UnauthorizedException.class,
-                        () -> authenticationService.authenticate(request)
-                );
-
-        assertEquals(
-                ErrorCode.INVALID_CREDENTIALS,
-                exception.getErrorCode()
-        );
-
-        verify(userRepository)
-                .findByEmail(request.email());
-
-        verify(passwordEncoder)
-                .matches(request.password(), user.getPassword());
-
-        verifyNoMoreInteractions(
-                userRepository,
-                passwordEncoder
-        );
-    }
-
-    @Test
-    @DisplayName("Debe validar la contraseña utilizando PasswordEncoder")
-    void shouldValidatePasswordUsingPasswordEncoder() {
-
-        /* Arrange */
-
-        LoginRequest request = createRequest();
-
-        User user = createUser();
-
-        when(userRepository.findByEmail(request.email()))
-                .thenReturn(Optional.of(user));
-
-        when(passwordEncoder.matches(
-                request.password(),
-                user.getPassword()))
-                .thenReturn(true);
+        when(jwtService.generateToken(user))
+                .thenReturn("jwt-token");
 
         /* Act */
 
@@ -261,11 +193,16 @@ class AuthenticationServiceTest {
 
         /* Assert */
 
-        verify(passwordEncoder)
-                .matches(
-                        request.password(),
-                        user.getPassword()
-                );
+        verify(jwtService)
+                .generateToken(user);
+    }
+
+    private Authentication createAuthentication() {
+
+        return new UsernamePasswordAuthenticationToken(
+                "darwin@creditos.com",
+                null
+        );
     }
 
     private LoginRequest createRequest() {
@@ -278,25 +215,38 @@ class AuthenticationServiceTest {
 
     private User createUser() {
 
-        Role role = new Role();
-        role.setId(1L);
-        role.setName("Administrador");
-
-        Branch branch = new Branch();
-        branch.setId(1L);
-        branch.setName("Sucursal Tocache");
-
         User user = new User();
 
         user.setId(1L);
         user.setFullName("Darwin G.");
         user.setEmail("darwin@creditos.com");
         user.setPassword("$2a$10$passwordHash");
-        user.setRole(role);
-        user.setBranch(branch);
+        user.setRole(createRole());
+        user.setBranch(createBranch());
         user.setActive(true);
+        user.setTokenVersion(1L);
 
         return user;
+    }
+
+    private Role createRole() {
+
+        Role role = new Role();
+
+        role.setId(1L);
+        role.setName("Administrador");
+
+        return role;
+    }
+
+    private Branch createBranch() {
+
+        Branch branch = new Branch();
+
+        branch.setId(1L);
+        branch.setName("Sede Tocache");
+
+        return branch;
     }
 
 }

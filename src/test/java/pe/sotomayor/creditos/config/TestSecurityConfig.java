@@ -9,11 +9,11 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 
 /**
- * Configuraci髇 de seguridad utilizada exclusivamente durante
- * las pruebas de la capa de presentaci髇.
+ * Configuraci贸n de seguridad utilizada exclusivamente durante
+ * las pruebas de la capa de presentaci贸n.
  *
  * <p>
- * Deshabilita la autenticaci髇 JWT para permitir que los
+ * Deshabilita la autenticaci贸n JWT para permitir que los
  * controladores sean probados de manera aislada.
  * </p>
  *
@@ -26,7 +26,7 @@ public class TestSecurityConfig {
      * Configura una cadena de seguridad que permite todas
      * las solicitudes durante las pruebas.
      *
-     * @param http configuraci髇 HTTP
+     * @param http configuraci贸n HTTP
      * @return cadena de filtros
      * @throws Exception si ocurre un error
      */

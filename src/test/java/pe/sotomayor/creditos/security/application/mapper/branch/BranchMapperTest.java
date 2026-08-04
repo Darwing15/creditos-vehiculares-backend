@@ -3,7 +3,6 @@ package pe.sotomayor.creditos.security.application.mapper.branch;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mapstruct.factory.Mappers;
 
@@ -12,27 +11,12 @@ import pe.sotomayor.creditos.security.application.dto.branch.request.UpdateBranc
 import pe.sotomayor.creditos.security.application.dto.branch.response.BranchResponse;
 import pe.sotomayor.creditos.security.domain.model.entity.Branch;
 
-/**
- * Pruebas unitarias para {@link BranchMapper}.
- *
- * <p>
- * Verifica las conversiones entre los DTO de aplicación y la entidad
- * {@link Branch}.
- * </p>
- *
- * <p>
- * Estas pruebas validan el contrato del mapper generado por MapStruct.
- * </p>
- *
- * @author DarwinG
- */
 class BranchMapperTest {
 
     private final BranchMapper branchMapper =
             Mappers.getMapper(BranchMapper.class);
 
     @Test
-    @DisplayName("Debe convertir CreateBranchRequest en Branch")
     void shouldMapCreateRequestToEntity() {
 
         /* Arrange */
@@ -55,7 +39,6 @@ class BranchMapperTest {
     }
 
     @Test
-    @DisplayName("Debe actualizar una sucursal existente")
     void shouldUpdateEntity() {
 
         /* Arrange */
@@ -77,7 +60,6 @@ class BranchMapperTest {
     }
 
     @Test
-    @DisplayName("Debe convertir Branch en BranchResponse")
     void shouldMapEntityToResponse() {
 
         /* Arrange */
