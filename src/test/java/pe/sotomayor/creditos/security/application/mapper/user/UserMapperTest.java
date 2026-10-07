@@ -1,8 +1,5 @@
 package pe.sotomayor.creditos.security.application.mapper.user;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-
 import org.junit.jupiter.api.Test;
 
 import org.mapstruct.factory.Mappers;
@@ -15,120 +12,135 @@ import pe.sotomayor.creditos.security.domain.model.entity.Branch;
 import pe.sotomayor.creditos.security.domain.model.entity.Role;
 import pe.sotomayor.creditos.security.domain.model.entity.User;
 
+import java.util.HashSet;
+import java.util.Set;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
 class UserMapperTest {
 
-    private final UserMapper userMapper =
+    private final UserMapper mapper =
             Mappers.getMapper(UserMapper.class);
 
     @Test
-    void shouldMapCreateRequestToEntity() {
-
+    void shouldMapPublicFieldsWhenCreatingEntity() throws Exception {
         /* Arrange */
-
         CreateUserRequest request = createRequest();
 
         /* Act */
-
-        User user = userMapper.toEntity(request);
+        User result = mapper.toEntity(request);
 
         /* Assert */
-
-        assertNotNull(user);
-
-        assertEquals(request.fullName(), user.getFullName());
-        assertEquals(request.email(), user.getEmail());
+        assertThat(result).isNotNull();
+        assertThat(result.getId()).isNull();
+        assertThat(result.getFullName()).isEqualTo(request.fullName());
+        assertThat(result.getEmail()).isEqualTo(request.email());
+        assertThat(result.getPassword()).isNull();
+        assertThat(result.getRole()).isNull();
+        assertThat(result.getBranch()).isNull();
     }
 
     @Test
-    void shouldUpdateEntity() {
-
+    void shouldPreserveProtectedFieldsWhenUpdatingEntity() throws Exception {
         /* Arrange */
-
-        User user = createUser();
-
-        UpdateUserRequest request = updateRequest();
+        User entity = createUser();
+        entity.setRowVersion(7L);
+        UpdateUserRequest request = createUpdateRequest();
 
         /* Act */
-
-        userMapper.updateEntity(request, user);
+        mapper.updateEntity(request, entity);
 
         /* Assert */
-
-        assertEquals(request.fullName(), user.getFullName());
-        assertEquals(request.email(), user.getEmail());
+        assertThat(entity.getId()).isEqualTo(1L);
+        assertThat(entity.getRowVersion()).isEqualTo(7L);
+        assertThat(entity.getFullName()).isEqualTo(request.fullName());
+        assertThat(entity.getEmail()).isEqualTo(request.email());
+        assertThat(entity.getPassword()).isEqualTo("encoded-password");
+        assertThat(entity.getTokenVersion()).isEqualTo(1L);
+        assertThat(entity.getRole().getId()).isEqualTo(2L);
+        assertThat(entity.getBranch().getId()).isEqualTo(3L);
+        assertThat(entity.getActive()).isTrue();
     }
 
     @Test
-    void shouldMapEntityToResponse() {
-
+    void shouldMapResponseWhenEntityHasRelations() throws Exception {
         /* Arrange */
-
-        User user = createUser();
+        User entity = createUser();
 
         /* Act */
-
-        UserResponse response = userMapper.toResponse(user);
+        UserResponse result = mapper.toResponse(entity);
 
         /* Assert */
-
-        assertNotNull(response);
-
-        assertEquals(user.getId(), response.id());
-        assertEquals(user.getFullName(), response.fullName());
-        assertEquals(user.getEmail(), response.email());
-
-        assertEquals(user.getRole().getId(), response.roleId());
-        assertEquals(user.getRole().getName(), response.roleName());
-
-        assertEquals(user.getBranch().getId(), response.branchId());
-        assertEquals(user.getBranch().getName(), response.branchName());
-
-        assertEquals(user.getActive(), response.active());
-    }
-
-    private CreateUserRequest createRequest() {
-
-        return new CreateUserRequest(
-                "Raul Sotomayor",
-                "admin@creditos.com",
-                "Admin123",
-                1L,
-                1L
-        );
-
-    }
-
-    private UpdateUserRequest updateRequest() {
-
-        return new UpdateUserRequest(
-                "Raul Sotomayor Gonzales",
-                "admin2@creditos.com",
-                1L,
-                1L
-        );
-
+        assertThat(result).isEqualTo(createResponse());
     }
 
     private User createUser() {
+        return User.builder()
+                .id(1L)
+                .fullName("Ana Perez")
+                .email("ana@test.com")
+                .password("encoded-password")
+                .active(true)
+                .deleted(false)
+                .tokenVersion(1L)
+                .role(createRole())
+                .branch(createBranch())
+                .build();
+    }
 
-        Role role = new Role();
-        role.setId(1L);
-        role.setName("Administrador");
+    private Role createRole() {
+        return Role.builder()
+                .id(2L)
+                .name("Operador")
+                .description("Consulta de usuarios")
+                .permissions(new HashSet<>(Set.of("security:users:read")))
+                .deleted(false)
+                .build();
+    }
 
-        Branch branch = new Branch();
-        branch.setId(1L);
-        branch.setName("Sucursal Principal");
+    private Branch createBranch() {
+        return Branch.builder()
+                .id(3L)
+                .code("LIM")
+                .name("Lima")
+                .address("Av. Peru 123")
+                .email("lima@test.com")
+                .phone("999999999")
+                .active(true)
+                .deleted(false)
+                .build();
+    }
 
-        User user = new User();
+    private UserResponse createResponse() {
+        return new UserResponse(
+                1L,
+                "Ana Perez",
+                "ana@test.com",
+                2L,
+                "Operador",
+                3L,
+                "Lima",
+                true
+        );
+    }
 
-        user.setId(1L);
-        user.setFullName("Raul Sotomayor");
-        user.setEmail("admin@creditos.com");
-        user.setRole(role);
-        user.setBranch(branch);
-        user.setActive(true);
+    private CreateUserRequest createRequest() {
+        return new CreateUserRequest(
+                "Ana Perez",
+                "ana@test.com",
+                "a strong password",
+                2L,
+                3L
+        );
+    }
 
-        return user;
+    private UpdateUserRequest createUpdateRequest() {
+        return new UpdateUserRequest(
+                "Ana Actualizada",
+                "updated@test.com",
+                4L,
+                5L
+        );
     }
 
 }

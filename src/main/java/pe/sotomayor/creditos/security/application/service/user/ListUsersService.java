@@ -2,6 +2,7 @@ package pe.sotomayor.creditos.security.application.service.user;
 
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,9 +46,10 @@ public class ListUsersService implements ListUsersUseCase {
      * @return lista de usuarios convertidos a objetos de respuesta
      */
     @Override
+    @PreAuthorize("hasAuthority('security:users:read')")
     public List<UserResponse> findAll() {
 
-        return userRepository.findAll()
+        return userRepository.findAllByDeletedFalse()
                 .stream()
                 .map(userMapper::toResponse)
                 .toList();

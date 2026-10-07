@@ -7,24 +7,31 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import org.springframework.security.access.AccessDeniedException;
 import pe.sotomayor.creditos.security.application.dto.branch.response.BranchResponse;
 import pe.sotomayor.creditos.security.application.mapper.branch.BranchMapper;
 
 import pe.sotomayor.creditos.security.domain.model.entity.Branch;
+import pe.sotomayor.creditos.security.domain.model.enumeration.SecurityPermission;
 import pe.sotomayor.creditos.security.domain.repository.BranchRepository;
 
+import pe.sotomayor.creditos.security.infrastructure.security.service.SecurityWriteGate;
+import pe.sotomayor.creditos.security.infrastructure.security.service.SecurityWriteGate.WriteContext;
 import pe.sotomayor.creditos.shared.error.ErrorCode;
 import pe.sotomayor.creditos.shared.exception.ConflictException;
 
 import pe.sotomayor.creditos.security.application.dto.branch.request.CreateBranchRequest;
+import pe.sotomayor.creditos.shared.exception.ValidationException;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
+
+import static pe.sotomayor.creditos.security.domain.model.enumeration.SecurityPermission.BRANCHES_WRITE;
 
 @ExtendWith(MockitoExtension.class)
 class CreateBranchServiceTest {
@@ -35,144 +42,133 @@ class CreateBranchServiceTest {
     @Mock
     private BranchMapper branchMapper;
 
+    @Mock
+    private SecurityWriteGate gate;
+
     @InjectMocks
-    private CreateBranchService createBranchService;
+    private CreateBranchService service;
 
     @Test
-    void shouldCreateBranchWhenCodeDoesNotExist() {
-
+    void shouldCreateBranchWhenDataIsValid() throws Exception {
         /* Arrange */
-
         CreateBranchRequest request = createRequest();
-
-        Branch branch = createBranch(1L);
-
-        BranchResponse expectedResponse = createResponse(1L);
-
-        when(branchRepository.existsByCode(
-                request.code()))
-                .thenReturn(false);
-
-        when(branchMapper.toEntity(request))
-                .thenReturn(branch);
-
-        when(branchRepository.save(branch))
-                .thenReturn(branch);
-
-        when(branchMapper.toResponse(branch))
-                .thenReturn(expectedResponse);
+        Branch entity = createBranch();
+        when(gate.begin(BRANCHES_WRITE)).thenReturn(createContext());
+        when(branchRepository.existsByCode(request.code())).thenReturn(false);
+        BranchResponse expected = createResponse();
+        when(branchMapper.toEntity(request)).thenReturn(entity);
+        when(branchRepository.saveAndFlush(entity)).thenReturn(entity);
+        when(branchMapper.toResponse(entity)).thenReturn(expected);
 
         /* Act */
-
-        BranchResponse response = createBranchService.create(request);
+        BranchResponse result = service.create(request);
 
         /* Assert */
+        assertThat(result).isEqualTo(expected);
+        assertThat(entity.getActive()).isTrue();
 
-        assertNotNull(response);
-
-        assertEquals(
-                1L,
-                response.id()
-        );
-
-        assertEquals(
-                "TOC01",
-                response.code()
-        );
-
-        assertEquals(
-                "Sucursal Tocache",
-                response.name()
-        );
-
+        verify(gate).begin(BRANCHES_WRITE);
         verify(branchRepository).existsByCode(request.code());
         verify(branchMapper).toEntity(request);
-        verify(branchRepository).save(branch);
-        verify(branchMapper).toResponse(branch);
-
-        verifyNoMoreInteractions(
-                branchRepository,
-                branchMapper
-        );
+        verify(branchRepository).saveAndFlush(entity);
+        verify(gate).finish();
+        verify(branchMapper).toResponse(entity);
+        verifyNoMoreInteractions(branchRepository, branchMapper, gate);
     }
 
     @Test
-    void shouldThrowConflictExceptionWhenCodeAlreadyExists() {
-
+    void shouldStopBeforeReadingDataWhenWriteGateDeniesAccess() throws Exception {
         /* Arrange */
+        CreateBranchRequest request = createRequest();
+        when(gate.begin(BRANCHES_WRITE)).thenThrow(new AccessDeniedException("denied"));
 
-        CreateBranchRequest request =
-                new CreateBranchRequest(
-                        "TOC01",
-                        "Sucursal Tocache",
-                        "Av. Principal 123",
-                        "987654321",
-                        "tocache@creditos.com",
-                        null
-                );
+        /* Act */
+        Throwable thrown = catchThrowable(() -> service.create(request));
 
-        when(branchRepository.existsByCode(
-                request.code()))
-                .thenReturn(true);
+        /* Assert */
+        assertThat(thrown).isInstanceOf(AccessDeniedException.class);
+        verify(gate).begin(BRANCHES_WRITE);
+        verifyNoInteractions(branchRepository, branchMapper);
+        verifyNoMoreInteractions(branchRepository, branchMapper, gate);
+    }
 
-        /* Act & Assert */
+    @Test
+    void shouldRejectDuplicateWhenCodeAlreadyExists() throws Exception {
+        /* Arrange */
+        CreateBranchRequest request = createRequest();
+        Branch entity = createBranch();
+        when(gate.begin(BRANCHES_WRITE)).thenReturn(createContext());
+        when(branchRepository.existsByCode(request.code())).thenReturn(true);
 
-        ConflictException exception =
-                assertThrows(
-                        ConflictException.class,
-                        () ->
-                                createBranchService.create(request)
-                );
+        /* Act */
+        Throwable thrown = catchThrowable(() -> service.create(request));
 
-        assertEquals(
-                ErrorCode.BRANCH_ALREADY_EXISTS,
-                exception.getErrorCode()
-        );
-
+        /* Assert */
+        assertThat(thrown).isInstanceOf(ConflictException.class).extracting("errorCode").isEqualTo(ErrorCode.BRANCH_ALREADY_EXISTS);
+        verify(gate).begin(BRANCHES_WRITE);
         verify(branchRepository).existsByCode(request.code());
+        verifyNoInteractions(branchMapper);
+        verifyNoMoreInteractions(branchRepository, branchMapper, gate);
+    }
 
-        verifyNoMoreInteractions(
-                branchRepository,
-                branchMapper
+    @Test
+    void shouldRejectCreationWhenManagerIsProvided() throws Exception {
+        /* Arrange */
+        CreateBranchRequest valid = createRequest();
+        CreateBranchRequest request = new CreateBranchRequest(valid.code(), valid.name(), valid.address(), valid.phone(), valid.email(), 1L);
+        Branch entity = createBranch();
+        when(gate.begin(BRANCHES_WRITE)).thenReturn(createContext());
+        when(branchRepository.existsByCode(request.code())).thenReturn(false);
+
+        /* Act */
+        Throwable thrown = catchThrowable(() -> service.create(request));
+
+        /* Assert */
+        assertThat(thrown).isInstanceOf(ValidationException.class).extracting("errorCode").isEqualTo(ErrorCode.VALIDATION_ERROR);
+        verify(gate).begin(BRANCHES_WRITE);
+        verify(branchRepository).existsByCode(request.code());
+        verifyNoInteractions(branchMapper);
+        verifyNoMoreInteractions(branchRepository, branchMapper, gate);
+    }
+
+    private Branch createBranch() {
+        return Branch.builder()
+                .id(3L)
+                .code("LIM")
+                .name("Lima")
+                .address("Av. Peru 123")
+                .email("lima@test.com")
+                .phone("999999999")
+                .active(true)
+                .deleted(false)
+                .build();
+    }
+
+    private WriteContext createContext() {
+        return new WriteContext(99L, SecurityPermission.authorities());
+    }
+
+    private BranchResponse createResponse() {
+        return new BranchResponse(
+                3L,
+                "LIM",
+                "Lima",
+                "Av. Peru 123",
+                "999999999",
+                "lima@test.com",
+                null,
+                true
         );
     }
 
     private CreateBranchRequest createRequest() {
         return new CreateBranchRequest(
-                "TOC01",
-                "Sucursal Tocache",
-                "Av. Principal 123",
-                "987654321",
-                "tocache@creditos.com",
+                "LIM",
+                "Lima",
+                "Av. Peru 123",
+                "999999999",
+                "lima@test.com",
                 null
-        );
-    }
-
-    private Branch createBranch(Long id) {
-
-        Branch branch = new Branch();
-
-        branch.setId(id);
-        branch.setCode("TOC01");
-        branch.setName("Sucursal Tocache");
-        branch.setAddress("Av. Principal 123");
-        branch.setPhone("987654321");
-        branch.setEmail("tocache@creditos.com");
-
-        return branch;
-    }
-
-    private BranchResponse createResponse(Long id) {
-
-        return new BranchResponse(
-                id,
-                "TOC01",
-                "Sucursal Tocache",
-                "Av. Principal 123",
-                "987654321",
-                "tocache@creditos.com",
-                null,
-                true
         );
     }
 

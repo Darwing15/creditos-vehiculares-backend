@@ -9,18 +9,22 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import pe.sotomayor.creditos.security.application.dto.role.response.RoleResponse;
 import pe.sotomayor.creditos.security.application.mapper.role.RoleMapper;
+
 import pe.sotomayor.creditos.security.domain.model.entity.Role;
 import pe.sotomayor.creditos.security.domain.repository.RoleRepository;
+
 import pe.sotomayor.creditos.shared.error.ErrorCode;
 import pe.sotomayor.creditos.shared.exception.ResourceNotFoundException;
 
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
@@ -28,81 +32,59 @@ import static org.mockito.Mockito.when;
 class GetRoleServiceTest {
 
     @Mock
-    private RoleRepository roleRepository;
+    private RoleRepository roles;
 
     @Mock
-    private RoleMapper roleMapper;
+    private RoleMapper mapper;
 
     @InjectMocks
-    private GetRoleService getRoleService;
+    private GetRoleService service;
 
     @Test
-    void shouldReturnRoleWhenIdExists() {
-
+    void shouldReturnRoleDataWhenRoleExists() throws Exception {
         /* Arrange */
-        Long roleId = 1L;
-
-        Role role = createRole(roleId);
-
-        RoleResponse expectedResponse = createResponse(roleId);
-
-        when(roleRepository.findById(roleId)).thenReturn(Optional.of(role));
-        when(roleMapper.toResponse(role)).thenReturn(expectedResponse);
+        Role role = createRole();
+        when(roles.findByIdAndDeletedFalse(2L)).thenReturn(Optional.of(role));
+        RoleResponse expected = createResponse();
+        when(mapper.toResponse(role)).thenReturn(expected);
 
         /* Act */
-        RoleResponse response = getRoleService.getById(roleId);
+        RoleResponse result = service.getById(2L);
 
         /* Assert */
-        assertNotNull(response);
-        assertEquals(roleId, response.id());
-        assertEquals("Administrador", response.name());
-        assertEquals("Rol con acceso total al sistema", response.description());
-
-        verify(roleRepository).findById(roleId);
-        verify(roleMapper).toResponse(role);
-
-        verifyNoMoreInteractions(roleRepository, roleMapper);
+        assertThat(result).isEqualTo(expected);
+        verify(roles).findByIdAndDeletedFalse(2L);
+        verify(mapper).toResponse(role);
+        verifyNoMoreInteractions(roles, mapper);
     }
 
     @Test
-    void shouldThrowResourceNotFoundExceptionWhenRoleDoesNotExist() {
-
+    void shouldThrowNotFoundWhenRoleDoesNotExist() throws Exception {
         /* Arrange */
+        when(roles.findByIdAndDeletedFalse(2L)).thenReturn(Optional.empty());
 
-        Long roleId = 99L;
+        /* Act */
+        Throwable thrown = catchThrowable(() -> service.getById(2L));
 
-        when(roleRepository.findById(roleId)).thenReturn(Optional.empty());
-
-        /* Act & Assert */
-
-        ResourceNotFoundException exception =
-                assertThrows(
-                        ResourceNotFoundException.class,
-                        () -> getRoleService.getById(roleId));
-
-        assertEquals(ErrorCode.ROLE_NOT_FOUND, exception.getErrorCode());
-
-        verify(roleRepository).findById(roleId);
-
-        verifyNoMoreInteractions(roleRepository, roleMapper);
+        /* Assert */
+        assertThat(thrown).isInstanceOf(ResourceNotFoundException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.ROLE_NOT_FOUND);
+        verify(roles).findByIdAndDeletedFalse(2L);
+        verifyNoInteractions(mapper);
+        verifyNoMoreInteractions(roles, mapper);
     }
 
-    private Role createRole(Long id) {
-
-        Role role = new Role();
-
-        role.setId(id);
-        role.setName("Administrador");
-        role.setDescription("Rol con acceso total al sistema");
-
-        return role;
+    private Role createRole() {
+        return Role.builder()
+                .id(2L)
+                .name("Operador")
+                .description("Consulta de usuarios")
+                .permissions(new HashSet<>(Set.of("security:users:read")))
+                .deleted(false)
+                .build();
     }
 
-    private RoleResponse createResponse(Long id) {
-
-        return new RoleResponse(
-                id,
-                "Administrador",
-                "Rol con acceso total al sistema");
+    private RoleResponse createResponse() {
+        return new RoleResponse(2L, "Operador", "Consulta de usuarios");
     }
 }

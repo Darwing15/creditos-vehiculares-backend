@@ -2,7 +2,11 @@ package pe.sotomayor.creditos.security.application.service.branch;
 
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.security.access.prepost.PreAuthorize;
+
 import org.springframework.stereotype.Service;
+
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import pe.sotomayor.creditos.security.application.dto.branch.response.BranchResponse;
@@ -13,10 +17,15 @@ import pe.sotomayor.creditos.security.application.usecase.branch.DeactivateBranc
 
 import pe.sotomayor.creditos.security.domain.model.entity.Branch;
 
+import pe.sotomayor.creditos.security.domain.model.enumeration.SecurityPermission;
+
 import pe.sotomayor.creditos.security.domain.repository.BranchRepository;
 import pe.sotomayor.creditos.security.domain.repository.UserRepository;
 
+import pe.sotomayor.creditos.security.infrastructure.security.service.SecurityWriteGate;
+
 import pe.sotomayor.creditos.shared.error.ErrorCode;
+
 import pe.sotomayor.creditos.shared.exception.ConflictException;
 import pe.sotomayor.creditos.shared.exception.ResourceNotFoundException;
 
@@ -36,7 +45,7 @@ import pe.sotomayor.creditos.shared.exception.ResourceNotFoundException;
  * @author DarwinG
  */
 @Service
-@Transactional
+@Transactional(isolation = Isolation.READ_COMMITTED)
 @RequiredArgsConstructor
 public class DeactivateBranchService implements DeactivateBranchUseCase {
 
@@ -45,6 +54,8 @@ public class DeactivateBranchService implements DeactivateBranchUseCase {
     private final UserRepository userRepository;
 
     private final BranchMapper branchMapper;
+
+    private final SecurityWriteGate securityWriteGate;
 
     /**
      * Desactiva una sucursal existente.
@@ -55,9 +66,12 @@ public class DeactivateBranchService implements DeactivateBranchUseCase {
      * @throws ConflictException         si la sucursal tiene usuarios asociados
      */
     @Override
+    @PreAuthorize("hasAuthority('security:branches:write')")
     public BranchResponse deactivate(Long id) {
 
-        Branch branch = branchRepository.findById(id)
+        securityWriteGate.begin(SecurityPermission.BRANCHES_WRITE);
+
+        Branch branch = branchRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() ->
                         new ResourceNotFoundException(
                                 ErrorCode.BRANCH_NOT_FOUND,
@@ -76,7 +90,8 @@ public class DeactivateBranchService implements DeactivateBranchUseCase {
 
         branch.setActive(false);
 
-        Branch savedBranch = branchRepository.save(branch);
+        Branch savedBranch = branchRepository.saveAndFlush(branch);
+        securityWriteGate.finish();
 
         return branchMapper.toResponse(savedBranch);
     }

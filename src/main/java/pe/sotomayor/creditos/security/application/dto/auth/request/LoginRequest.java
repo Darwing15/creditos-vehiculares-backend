@@ -42,11 +42,7 @@ public record LoginRequest(
         @NotBlank(
                 message = "La contraseña es obligatoria."
         )
-        @Size(
-                min = 8,
-                max = 100,
-                message = "La contraseña debe tener entre 8 y 100 caracteres."
-        )
+        @Size(max = 256)
         String password
 
 ) {

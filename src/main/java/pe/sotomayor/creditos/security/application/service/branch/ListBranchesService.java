@@ -2,7 +2,10 @@ package pe.sotomayor.creditos.security.application.service.branch;
 
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.security.access.prepost.PreAuthorize;
+
 import org.springframework.stereotype.Service;
+
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -41,13 +44,13 @@ public class ListBranchesService implements ListBranchesUseCase {
      * @return lista de sucursales
      */
     @Override
+    @PreAuthorize("hasAuthority('security:branches:read')")
     public List<BranchResponse> findAll() {
 
-        return branchRepository.findAll()
+        return branchRepository.findAllByDeletedFalse()
                 .stream()
                 .map(branchMapper::toResponse)
                 .toList();
-
     }
 
 }

@@ -7,6 +7,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import org.springframework.security.access.AccessDeniedException;
 import pe.sotomayor.creditos.security.application.dto.user.request.UpdateUserRequest;
 import pe.sotomayor.creditos.security.application.dto.user.response.UserResponse;
 
@@ -16,384 +17,522 @@ import pe.sotomayor.creditos.security.domain.model.entity.Branch;
 import pe.sotomayor.creditos.security.domain.model.entity.Role;
 import pe.sotomayor.creditos.security.domain.model.entity.User;
 
+import pe.sotomayor.creditos.security.domain.model.enumeration.SecurityPermission;
 import pe.sotomayor.creditos.security.domain.repository.BranchRepository;
 import pe.sotomayor.creditos.security.domain.repository.RoleRepository;
 import pe.sotomayor.creditos.security.domain.repository.UserRepository;
+
+import pe.sotomayor.creditos.security.infrastructure.security.service.SecurityWriteGate;
+import pe.sotomayor.creditos.security.infrastructure.security.service.SecurityWriteGate.WriteContext;
+
 import pe.sotomayor.creditos.shared.error.ErrorCode;
+
 import pe.sotomayor.creditos.shared.exception.ConflictException;
 import pe.sotomayor.creditos.shared.exception.ResourceNotFoundException;
+import pe.sotomayor.creditos.shared.exception.ValidationException;
 
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
+
+import static pe.sotomayor.creditos.security.domain.model.enumeration.SecurityPermission.*;
 
 @ExtendWith(MockitoExtension.class)
 class UpdateUserServiceTest {
 
     @Mock
-    private UserRepository userRepository;
+    private UserRepository users;
 
     @Mock
-    private RoleRepository roleRepository;
+    private UserMapper mapper;
 
     @Mock
-    private BranchRepository branchRepository;
+    private BranchRepository branches;
 
     @Mock
-    private UserMapper userMapper;
+    private SecurityWriteGate gate;
+
+    @Mock
+    private RoleRepository roles;
 
     @InjectMocks
-    private UpdateUserService updateUserService;
+    private UpdateUserService service;
 
     @Test
-    void shouldUpdateUserWhenUserExists() {
-
+    void shouldUpdateUserWhenDataIsValid() throws Exception {
         /* Arrange */
-
-        Long userId = 1L;
-
-        Long roleId = 2L;
-
-        Long branchId = 3L;
-
         UpdateUserRequest request = createRequest();
-
-        User user = createUser(userId);
-
-        Role role = createRole(roleId);
-
-        Branch branch = createBranch(branchId);
-
-        UserResponse expectedResponse = createResponse(userId, roleId, branchId);
-
-        when(userRepository.findById(userId))
-                .thenReturn(Optional.of(user));
-
-        when(userRepository.existsByEmailAndIdNot(
-                request.email(),
-                userId))
-                .thenReturn(false);
-
-        when(roleRepository.findById(roleId))
-                .thenReturn(Optional.of(role));
-
-        when(branchRepository.findById(branchId))
-                .thenReturn(Optional.of(branch));
-
-        when(userRepository.save(user))
-                .thenReturn(user);
-
-        when(userMapper.toResponse(user))
-                .thenReturn(expectedResponse);
+        User user = createUser();
+        when(gate.begin(USERS_WRITE)).thenReturn(createContext());
+        when(users.findByIdAndDeletedFalse(1L)).thenReturn(Optional.of(user));
+        when(users.existsByEmailAndIdNot(request.email(), 1L)).thenReturn(false);
+        Role role = createRole();
+        when(roles.findByIdAndDeletedFalse(request.roleId())).thenReturn(Optional.of(role));
+        Branch branch = createBranch();
+        when(branches.findByIdAndDeletedFalse(request.branchId())).thenReturn(Optional.of(branch));
+        UserResponse expected = createResponse();
+        when(users.saveAndFlush(user)).thenReturn(user);
+        when(mapper.toResponse(user)).thenReturn(expected);
 
         /* Act */
-
-        UserResponse response = updateUserService.update(userId, request);
+        UserResponse result = service.update(1L, request);
 
         /* Assert */
-
-        assertNotNull(response);
-
-        assertEquals(
-                userId,
-                response.id()
-        );
-
-        assertEquals(
-                "Juan Pérez",
-                response.fullName()
-        );
-
-        assertEquals(
-                "juan@test.com",
-                response.email()
-        );
-
-        verify(userRepository).findById(userId);
-
-        verify(userRepository)
-                .existsByEmailAndIdNot(
-                        request.email(),
-                        userId);
-
-        verify(roleRepository).findById(roleId);
-        verify(branchRepository).findById(branchId);
-
-        verify(userMapper)
-                .updateEntity(
-                        request,
-                        user);
-
-        verify(userRepository)
-                .save(user);
-
-        verify(userMapper)
-                .toResponse(user);
-
-        verifyNoMoreInteractions(
-                userRepository,
-                roleRepository,
-                branchRepository,
-                userMapper
-        );
-
+        assertThat(result).isEqualTo(expected);
+        assertThat(user.getTokenVersion()).isEqualTo(1L);
+        assertThat(user.getActive()).isTrue();
+        assertThat(user.getPassword()).isEqualTo("encoded-password");
+        assertThat(user.getRole()).isSameAs(role);
+        assertThat(user.getBranch()).isSameAs(branch);
+        verify(gate).begin(USERS_WRITE);
+        verify(users).findByIdAndDeletedFalse(1L);
+        verify(users).existsByEmailAndIdNot(request.email(), 1L);
+        verify(roles).findByIdAndDeletedFalse(request.roleId());
+        verify(branches).findByIdAndDeletedFalse(request.branchId());
+        verify(mapper).updateEntity(request, user);
+        verify(users).saveAndFlush(user);
+        verify(gate).finish();
+        verify(mapper).toResponse(user);
+        verifyNoMoreInteractions(users, mapper, branches, gate, roles);
     }
 
     @Test
-    void shouldThrowResourceNotFoundExceptionWhenUserDoesNotExist() {
-
+    void shouldStopBeforeReadingDataWhenWriteGateDeniesAccess() throws Exception {
         /* Arrange */
+        UpdateUserRequest request = createRequest();
+        when(gate.begin(USERS_WRITE)).thenThrow(new AccessDeniedException("denied"));
 
-        Long userId = 1L;
+        /* Act */
+        Throwable thrown = catchThrowable(() -> service.update(1L, request));
 
-        when(userRepository.findById(userId))
-                .thenReturn(Optional.empty());
-
-        /* Act & Assert */
-
-        ResourceNotFoundException exception =
-                assertThrows(
-                        ResourceNotFoundException.class,
-                        () -> updateUserService.update(
-                                userId,
-                                createRequest()
-                        )
-                );
-
-        assertEquals(
-                ErrorCode.USER_NOT_FOUND,
-                exception.getErrorCode()
-        );
-
-        verify(userRepository)
-                .findById(userId);
-
-        verifyNoMoreInteractions(
-                userRepository,
-                roleRepository,
-                branchRepository,
-                userMapper
-        );
+        /* Assert */
+        assertThat(thrown).isInstanceOf(AccessDeniedException.class);
+        verify(gate).begin(USERS_WRITE);
+        verifyNoInteractions(users, mapper, branches, roles);
+        verifyNoMoreInteractions(users, mapper, branches, gate, roles);
     }
 
     @Test
-    void shouldThrowConflictExceptionWhenEmailAlreadyExists() {
-
+    void shouldThrowNotFoundWhenUserDoesNotExist() throws Exception {
         /* Arrange */
+        UpdateUserRequest request = createRequest();
+        User user = createUser();
+        when(gate.begin(USERS_WRITE)).thenReturn(createContext());
+        when(users.findByIdAndDeletedFalse(1L)).thenReturn(Optional.empty());
 
-        Long userId = 1L;
+        /* Act */
+        Throwable thrown = catchThrowable(() -> service.update(1L, request));
 
-        when(userRepository.findById(userId))
-                .thenReturn(Optional.of(createUser(userId)));
-
-        when(userRepository.existsByEmailAndIdNot(
-                "juan@test.com",
-                userId))
-                .thenReturn(true);
-
-        /* Act & Assert */
-
-        ConflictException exception =
-                assertThrows(
-                        ConflictException.class,
-                        () -> updateUserService.update(
-                                userId,
-                                createRequest()
-                        )
-                );
-
-        assertEquals(
-                ErrorCode.USER_ALREADY_EXISTS,
-                exception.getErrorCode()
-        );
-
-        verify(userRepository)
-                .findById(userId);
-
-        verify(userRepository)
-                .existsByEmailAndIdNot(
-                        "juan@test.com",
-                        userId
-                );
-
-        verifyNoMoreInteractions(
-                userRepository,
-                roleRepository,
-                branchRepository,
-                userMapper
-        );
+        /* Assert */
+        assertThat(thrown).isInstanceOf(ResourceNotFoundException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.USER_NOT_FOUND);
+        verify(gate).begin(USERS_WRITE);
+        verify(users).findByIdAndDeletedFalse(1L);
+        verifyNoInteractions(mapper);
+        verifyNoMoreInteractions(users, mapper, branches, gate, roles);
     }
 
     @Test
-    void shouldThrowResourceNotFoundExceptionWhenRoleDoesNotExist() {
-
+    void shouldRejectMutationWhenEmailAlreadyExists() throws Exception {
         /* Arrange */
+        UpdateUserRequest request = createRequest();
+        User user = createUser();
+        when(gate.begin(USERS_WRITE)).thenReturn(createContext());
+        when(users.findByIdAndDeletedFalse(1L)).thenReturn(Optional.of(user));
+        when(users.existsByEmailAndIdNot(request.email(), 1L)).thenReturn(true);
 
-        Long userId = 1L;
+        /* Act */
+        Throwable thrown = catchThrowable(() -> service.update(1L, request));
 
-        when(userRepository.findById(userId))
-                .thenReturn(Optional.of(createUser(userId)));
-
-        when(userRepository.existsByEmailAndIdNot(
-                "juan@test.com",
-                userId))
-                .thenReturn(false);
-
-        when(roleRepository.findById(2L))
-                .thenReturn(Optional.empty());
-
-        /* Act & Assert */
-
-        ResourceNotFoundException exception =
-                assertThrows(
-                        ResourceNotFoundException.class,
-                        () -> updateUserService.update(
-                                userId,
-                                createRequest()
-                        )
-                );
-
-        assertEquals(
-                ErrorCode.ROLE_NOT_FOUND,
-                exception.getErrorCode()
-        );
-
-        verify(userRepository)
-                .findById(userId);
-
-        verify(userRepository)
-                .existsByEmailAndIdNot(
-                        "juan@test.com",
-                        userId
-                );
-
-        verify(roleRepository)
-                .findById(2L);
-
-        verifyNoMoreInteractions(
-                userRepository,
-                roleRepository,
-                branchRepository,
-                userMapper
-        );
+        /* Assert */
+        assertThat(thrown).isInstanceOf(ConflictException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.USER_ALREADY_EXISTS);
+        verify(gate).begin(USERS_WRITE);
+        verify(users).findByIdAndDeletedFalse(1L);
+        verify(users).existsByEmailAndIdNot(request.email(), 1L);
+        verifyNoInteractions(mapper);
+        verifyNoMoreInteractions(users, mapper, branches, gate, roles);
     }
 
     @Test
-    void shouldThrowResourceNotFoundExceptionWhenBranchDoesNotExist() {
-
+    void shouldThrowNotFoundWhenRoleDoesNotExist() throws Exception {
         /* Arrange */
+        UpdateUserRequest request = createRequest();
+        User user = createUser();
+        when(gate.begin(USERS_WRITE)).thenReturn(createContext());
+        when(users.findByIdAndDeletedFalse(1L)).thenReturn(Optional.of(user));
+        when(users.existsByEmailAndIdNot(request.email(), 1L)).thenReturn(false);
+        Role role = createRole();
+        when(roles.findByIdAndDeletedFalse(request.roleId())).thenReturn(Optional.empty());
 
-        Long userId = 1L;
+        /* Act */
+        Throwable thrown = catchThrowable(() -> service.update(1L, request));
 
-        when(userRepository.findById(userId))
-                .thenReturn(Optional.of(createUser(userId)));
+        /* Assert */
+        assertThat(thrown).isInstanceOf(ResourceNotFoundException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.ROLE_NOT_FOUND);
+        verify(gate).begin(USERS_WRITE);
+        verify(users).findByIdAndDeletedFalse(1L);
+        verify(users).existsByEmailAndIdNot(request.email(), 1L);
+        verify(roles).findByIdAndDeletedFalse(request.roleId());
+        verifyNoInteractions(mapper);
+        verifyNoMoreInteractions(users, mapper, branches, gate, roles);
+    }
 
-        when(userRepository.existsByEmailAndIdNot(
-                "juan@test.com",
-                userId))
-                .thenReturn(false);
+    @Test
+    void shouldThrowNotFoundWhenBranchDoesNotExist() throws Exception {
+        /* Arrange */
+        UpdateUserRequest request = createRequest();
+        User user = createUser();
+        when(gate.begin(USERS_WRITE)).thenReturn(createContext());
+        when(users.findByIdAndDeletedFalse(1L)).thenReturn(Optional.of(user));
+        when(users.existsByEmailAndIdNot(request.email(), 1L)).thenReturn(false);
+        Role role = createRole();
+        when(roles.findByIdAndDeletedFalse(request.roleId())).thenReturn(Optional.of(role));
+        Branch branch = createBranch();
+        when(branches.findByIdAndDeletedFalse(request.branchId())).thenReturn(Optional.empty());
 
-        when(roleRepository.findById(2L))
-                .thenReturn(Optional.of(createRole(2L)));
+        /* Act */
+        Throwable thrown = catchThrowable(() -> service.update(1L, request));
 
-        when(branchRepository.findById(3L))
-                .thenReturn(Optional.empty());
+        /* Assert */
+        assertThat(thrown).isInstanceOf(ResourceNotFoundException.class).extracting("errorCode").isEqualTo(ErrorCode.BRANCH_NOT_FOUND);
+        verify(gate).begin(USERS_WRITE);
+        verify(users).findByIdAndDeletedFalse(1L);
+        verify(users).existsByEmailAndIdNot(request.email(), 1L);
+        verify(roles).findByIdAndDeletedFalse(request.roleId());
+        verify(branches).findByIdAndDeletedFalse(request.branchId());
+        verifyNoInteractions(mapper);
+        verifyNoMoreInteractions(users, mapper, branches, gate, roles);
+    }
 
-        /* Act & Assert */
+    @Test
+    void shouldRejectMutationWhenBranchIsInactive() throws Exception {
+        /* Arrange */
+        UpdateUserRequest request = createRequest();
+        User user = createUser();
+        when(gate.begin(USERS_WRITE)).thenReturn(createContext());
+        when(users.findByIdAndDeletedFalse(1L)).thenReturn(Optional.of(user));
+        when(users.existsByEmailAndIdNot(request.email(), 1L)).thenReturn(false);
+        Role role = createRole();
+        when(roles.findByIdAndDeletedFalse(request.roleId())).thenReturn(Optional.of(role));
+        Branch branch = createBranch();
+        when(branches.findByIdAndDeletedFalse(request.branchId())).thenReturn(Optional.of(branch));
+        branch.setActive(false);
 
-        ResourceNotFoundException exception =
-                assertThrows(
-                        ResourceNotFoundException.class,
-                        () -> updateUserService.update(
-                                userId,
-                                createRequest()
-                        )
-                );
+        /* Act */
+        Throwable thrown = catchThrowable(() -> service.update(1L, request));
 
-        assertEquals(
-                ErrorCode.BRANCH_NOT_FOUND,
-                exception.getErrorCode()
-        );
+        /* Assert */
+        assertThat(thrown).isInstanceOf(ValidationException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.BRANCH_INACTIVE);
+        assertThat(user.getTokenVersion()).isEqualTo(1L);
+        verify(gate).begin(USERS_WRITE);
+        verify(users).findByIdAndDeletedFalse(1L);
+        verify(users).existsByEmailAndIdNot(request.email(), 1L);
+        verify(roles).findByIdAndDeletedFalse(request.roleId());
+        verify(branches).findByIdAndDeletedFalse(request.branchId());
+        verifyNoInteractions(mapper);
+        verifyNoMoreInteractions(users, mapper, branches, gate, roles);
+    }
 
-        verify(userRepository)
-                .findById(userId);
+    @Test
+    void shouldRejectMutationWhenTargetHasSuperiorPermissions() throws Exception {
+        /* Arrange */
+        UpdateUserRequest request = createRequest();
+        User user = createUser();
+        when(gate.begin(USERS_WRITE)).thenReturn(new WriteContext(99L, Set.of("security:users:write", "security:users:assign-role")));
+        when(users.findByIdAndDeletedFalse(1L)).thenReturn(Optional.of(user));
+        when(users.existsByEmailAndIdNot(request.email(), 1L)).thenReturn(false);
+        Role role = createRole();
+        when(roles.findByIdAndDeletedFalse(request.roleId())).thenReturn(Optional.of(role));
+        Branch branch = createBranch();
+        when(branches.findByIdAndDeletedFalse(request.branchId())).thenReturn(Optional.of(branch));
 
-        verify(userRepository)
-                .existsByEmailAndIdNot(
-                        "juan@test.com",
-                        userId
-                );
+        /* Act */
+        Throwable thrown = catchThrowable(() -> service.update(1L, request));
 
-        verify(roleRepository)
-                .findById(2L);
+        /* Assert */
+        assertThat(thrown).isInstanceOf(AccessDeniedException.class);
+        assertThat(user.getTokenVersion()).isEqualTo(1L);
+        verify(gate).begin(USERS_WRITE);
+        verify(users).findByIdAndDeletedFalse(1L);
+        verify(users).existsByEmailAndIdNot(request.email(), 1L);
+        verify(roles).findByIdAndDeletedFalse(request.roleId());
+        verify(branches).findByIdAndDeletedFalse(request.branchId());
+        verifyNoInteractions(mapper);
+        verifyNoMoreInteractions(users, mapper, branches, gate, roles);
+    }
 
-        verify(branchRepository)
-                .findById(3L);
+    @Test
+    void shouldRevokeTokensWhenEmailChanges() throws Exception {
+        /* Arrange */
+        UpdateUserRequest request = createRequest();
+        User user = createUser();
+        when(gate.begin(USERS_WRITE)).thenReturn(createContext());
+        when(users.findByIdAndDeletedFalse(1L)).thenReturn(Optional.of(user));
+        when(users.existsByEmailAndIdNot(request.email(), 1L)).thenReturn(false);
+        Role role = createRole();
+        when(roles.findByIdAndDeletedFalse(request.roleId())).thenReturn(Optional.of(role));
+        Branch branch = createBranch();
+        when(branches.findByIdAndDeletedFalse(request.branchId())).thenReturn(Optional.of(branch));
+        user.setEmail("old@test.com");
+        UserResponse expected = createResponse();
+        when(users.saveAndFlush(user)).thenReturn(user);
+        when(mapper.toResponse(user)).thenReturn(expected);
 
-        verifyNoMoreInteractions(
-                userRepository,
-                roleRepository,
-                branchRepository,
-                userMapper
+        /* Act */
+        UserResponse result = service.update(1L, request);
+
+        /* Assert */
+        assertThat(result).isEqualTo(expected);
+        assertThat(user.getTokenVersion()).isEqualTo(2L);
+        assertThat(user.getPassword()).isEqualTo("encoded-password");
+        verify(gate).begin(USERS_WRITE);
+        verify(users).findByIdAndDeletedFalse(1L);
+        verify(users).existsByEmailAndIdNot(request.email(), 1L);
+        verify(roles).findByIdAndDeletedFalse(request.roleId());
+        verify(branches).findByIdAndDeletedFalse(request.branchId());
+        verify(mapper).updateEntity(request, user);
+        verify(users).saveAndFlush(user);
+        verify(gate).finish();
+        verify(mapper).toResponse(user);
+        verifyNoMoreInteractions(users, mapper, branches, gate, roles);
+    }
+
+    @Test
+    void shouldRevokeTokensWhenRoleChanges() throws Exception {
+        /* Arrange */
+        UpdateUserRequest request = createRequest();
+        User user = createUser();
+        when(gate.begin(USERS_WRITE)).thenReturn(createContext());
+        when(users.findByIdAndDeletedFalse(1L)).thenReturn(Optional.of(user));
+        when(users.existsByEmailAndIdNot(request.email(), 1L)).thenReturn(false);
+        Role role = createRole();
+        when(roles.findByIdAndDeletedFalse(request.roleId())).thenReturn(Optional.of(role));
+        Branch branch = createBranch();
+        when(branches.findByIdAndDeletedFalse(request.branchId())).thenReturn(Optional.of(branch));
+        user.getRole().setId(4L);
+        UserResponse expected = createResponse();
+        when(users.saveAndFlush(user)).thenReturn(user);
+        when(mapper.toResponse(user)).thenReturn(expected);
+
+        /* Act */
+        UserResponse result = service.update(1L, request);
+
+        /* Assert */
+        assertThat(result).isEqualTo(expected);
+        assertThat(user.getTokenVersion()).isEqualTo(2L);
+        assertThat(user.getPassword()).isEqualTo("encoded-password");
+        verify(gate).begin(USERS_WRITE);
+        verify(users).findByIdAndDeletedFalse(1L);
+        verify(users).existsByEmailAndIdNot(request.email(), 1L);
+        verify(roles).findByIdAndDeletedFalse(request.roleId());
+        verify(branches).findByIdAndDeletedFalse(request.branchId());
+        verify(mapper).updateEntity(request, user);
+        verify(users).saveAndFlush(user);
+        verify(gate).finish();
+        verify(mapper).toResponse(user);
+        verifyNoMoreInteractions(users, mapper, branches, gate, roles);
+    }
+
+    @Test
+    void shouldRevokeTokensWhenBranchChanges() throws Exception {
+        /* Arrange */
+        UpdateUserRequest request = createRequest();
+        User user = createUser();
+        when(gate.begin(USERS_WRITE)).thenReturn(createContext());
+        when(users.findByIdAndDeletedFalse(1L)).thenReturn(Optional.of(user));
+        when(users.existsByEmailAndIdNot(request.email(), 1L)).thenReturn(false);
+        Role role = createRole();
+        when(roles.findByIdAndDeletedFalse(request.roleId())).thenReturn(Optional.of(role));
+        Branch branch = createBranch();
+        when(branches.findByIdAndDeletedFalse(request.branchId())).thenReturn(Optional.of(branch));
+        user.getBranch().setId(4L);
+        when(branches.existsByManagerId(1L)).thenReturn(false);
+        UserResponse expected = createResponse();
+        when(users.saveAndFlush(user)).thenReturn(user);
+        when(mapper.toResponse(user)).thenReturn(expected);
+
+        /* Act */
+        UserResponse result = service.update(1L, request);
+
+        /* Assert */
+        assertThat(result).isEqualTo(expected);
+        assertThat(user.getTokenVersion()).isEqualTo(2L);
+        assertThat(user.getPassword()).isEqualTo("encoded-password");
+        verify(gate).begin(USERS_WRITE);
+        verify(users).findByIdAndDeletedFalse(1L);
+        verify(users).existsByEmailAndIdNot(request.email(), 1L);
+        verify(roles).findByIdAndDeletedFalse(request.roleId());
+        verify(branches).findByIdAndDeletedFalse(request.branchId());
+        verify(branches).existsByManagerId(1L);
+        verify(mapper).updateEntity(request, user);
+        verify(users).saveAndFlush(user);
+        verify(gate).finish();
+        verify(mapper).toResponse(user);
+        verifyNoMoreInteractions(users, mapper, branches, gate, roles);
+    }
+
+    @Test
+    void shouldRejectUpdateWhenRoleAssignmentPermissionIsMissing() throws Exception {
+        /* Arrange */
+        UpdateUserRequest request = createRequest();
+        User user = createUser();
+        when(gate.begin(USERS_WRITE)).thenReturn(new WriteContext(99L, Set.of("security:users:write", "security:users:read")));
+        when(users.findByIdAndDeletedFalse(1L)).thenReturn(Optional.of(user));
+        when(users.existsByEmailAndIdNot(request.email(), 1L)).thenReturn(false);
+        Role role = createRole();
+        when(roles.findByIdAndDeletedFalse(request.roleId())).thenReturn(Optional.of(role));
+        Branch branch = createBranch();
+        when(branches.findByIdAndDeletedFalse(request.branchId())).thenReturn(Optional.of(branch));
+        role.setId(4L);
+
+        /* Act */
+        Throwable thrown = catchThrowable(() -> service.update(1L, request));
+
+        /* Assert */
+        assertThat(thrown).isInstanceOf(AccessDeniedException.class);
+        assertThat(user.getTokenVersion()).isEqualTo(1L);
+        verify(gate).begin(USERS_WRITE);
+        verify(users).findByIdAndDeletedFalse(1L);
+        verify(users).existsByEmailAndIdNot(request.email(), 1L);
+        verify(roles).findByIdAndDeletedFalse(request.roleId());
+        verify(branches).findByIdAndDeletedFalse(request.branchId());
+        verifyNoInteractions(mapper);
+        verifyNoMoreInteractions(users, mapper, branches, gate, roles);
+    }
+
+    @Test
+    void shouldRejectUpdateWhenNewRoleHasSuperiorPermissions() throws Exception {
+        /* Arrange */
+        UpdateUserRequest request = createRequest();
+        User user = createUser();
+        when(gate.begin(USERS_WRITE)).thenReturn(new WriteContext(99L, Set.of("security:users:write", "security:users:read", "security:users:assign-role")));
+        when(users.findByIdAndDeletedFalse(1L)).thenReturn(Optional.of(user));
+        when(users.existsByEmailAndIdNot(request.email(), 1L)).thenReturn(false);
+        Role role = createRole();
+        when(roles.findByIdAndDeletedFalse(request.roleId())).thenReturn(Optional.of(role));
+        Branch branch = createBranch();
+        when(branches.findByIdAndDeletedFalse(request.branchId())).thenReturn(Optional.of(branch));
+        role.setId(4L);
+        role.getPermissions().add("security:roles:write");
+
+        /* Act */
+        Throwable thrown = catchThrowable(() -> service.update(1L, request));
+
+        /* Assert */
+        assertThat(thrown).isInstanceOf(AccessDeniedException.class);
+        assertThat(user.getTokenVersion()).isEqualTo(1L);
+        verify(gate).begin(USERS_WRITE);
+        verify(users).findByIdAndDeletedFalse(1L);
+        verify(users).existsByEmailAndIdNot(request.email(), 1L);
+        verify(roles).findByIdAndDeletedFalse(request.roleId());
+        verify(branches).findByIdAndDeletedFalse(request.branchId());
+        verifyNoInteractions(mapper);
+        verifyNoMoreInteractions(users, mapper, branches, gate, roles);
+    }
+
+    @Test
+    void shouldRejectUpdateWhenBranchManagerWouldMove() throws Exception {
+        /* Arrange */
+        UpdateUserRequest request = createRequest();
+        User user = createUser();
+        when(gate.begin(USERS_WRITE)).thenReturn(createContext());
+        when(users.findByIdAndDeletedFalse(1L)).thenReturn(Optional.of(user));
+        when(users.existsByEmailAndIdNot(request.email(), 1L)).thenReturn(false);
+        Role role = createRole();
+        when(roles.findByIdAndDeletedFalse(request.roleId())).thenReturn(Optional.of(role));
+        Branch branch = createBranch();
+        when(branches.findByIdAndDeletedFalse(request.branchId())).thenReturn(Optional.of(branch));
+        branch.setId(4L);
+        when(branches.existsByManagerId(1L)).thenReturn(true);
+
+        /* Act */
+        Throwable thrown = catchThrowable(() -> service.update(1L, request));
+
+        /* Assert */
+        assertThat(thrown).isInstanceOf(ConflictException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.VALIDATION_ERROR);
+        assertThat(user.getTokenVersion()).isEqualTo(1L);
+        verify(gate).begin(USERS_WRITE);
+        verify(users).findByIdAndDeletedFalse(1L);
+        verify(users).existsByEmailAndIdNot(request.email(), 1L);
+        verify(roles).findByIdAndDeletedFalse(request.roleId());
+        verify(branches).findByIdAndDeletedFalse(request.branchId());
+        verify(branches).existsByManagerId(1L);
+        verifyNoInteractions(mapper);
+        verifyNoMoreInteractions(users, mapper, branches, gate, roles);
+    }
+
+    private User createUser() {
+        return User.builder()
+                .id(1L)
+                .fullName("Ana Perez")
+                .email("ana@test.com")
+                .password("encoded-password")
+                .active(true)
+                .deleted(false)
+                .tokenVersion(1L)
+                .role(createRole())
+                .branch(createBranch())
+                .build();
+    }
+
+    private Role createRole() {
+        return Role.builder()
+                .id(2L)
+                .name("Operador")
+                .description("Consulta de usuarios")
+                .permissions(new HashSet<>(Set.of("security:users:read")))
+                .deleted(false)
+                .build();
+    }
+
+    private Branch createBranch() {
+        return Branch.builder()
+                .id(3L)
+                .code("LIM")
+                .name("Lima")
+                .address("Av. Peru 123")
+                .email("lima@test.com")
+                .phone("999999999")
+                .active(true)
+                .deleted(false)
+                .build();
+    }
+
+    private WriteContext createContext() {
+        return new WriteContext(99L, SecurityPermission.authorities());
+    }
+
+    private UserResponse createResponse() {
+        return new UserResponse(
+                1L,
+                "Ana Perez",
+                "ana@test.com",
+                2L,
+                "Operador",
+                3L,
+                "Lima",
+                true
         );
     }
 
     private UpdateUserRequest createRequest() {
         return new UpdateUserRequest(
-                "Juan P�rez",
-                "juan@test.com",
+                "Ana Perez",
+                "ana@test.com",
                 2L,
                 3L
-        );
-    }
-
-    private User createUser(Long id) {
-
-        User user = new User();
-
-        user.setId(id);
-        user.setFullName("Usuario anterior");
-        user.setEmail("old@test.com");
-
-        return user;
-    }
-
-    private Role createRole(Long id) {
-
-        Role role = new Role();
-
-        role.setId(id);
-        role.setName("Administrador");
-
-        return role;
-    }
-
-    private Branch createBranch(Long id) {
-
-        Branch branch = new Branch();
-
-        branch.setId(id);
-        branch.setName("Sede Tocache");
-
-        return branch;
-    }
-
-    private UserResponse createResponse(Long userId, Long roleId, Long branchId) {
-        return new UserResponse(
-                userId,
-                "Juan Pérez",
-                "juan@test.com",
-                roleId,
-                "Administrador",
-                branchId,
-                "Sede Tocache",
-                true
         );
     }
 

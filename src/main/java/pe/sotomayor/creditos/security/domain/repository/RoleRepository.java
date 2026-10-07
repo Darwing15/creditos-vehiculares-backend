@@ -1,5 +1,6 @@
 package pe.sotomayor.creditos.security.domain.repository;
 
+import java.util.List;
 import java.util.Optional;
 
 import pe.sotomayor.creditos.security.domain.model.entity.Role;
@@ -45,5 +46,20 @@ public interface RoleRepository extends BaseRepository<Role> {
      * {@code false}
      */
     boolean existsByNameAndIdNot(String name, Long id);
+
+    /**
+     * Busca un rol disponible para consulta, edición o asignación administrativa.
+     *
+     * @param id identificador del rol
+     * @return rol encontrado, o vacío si no existe o está eliminado lógicamente
+     */
+    Optional<Role> findByIdAndDeletedFalse(Long id);
+
+    /**
+     * Recupera los roles que todavía pueden administrarse.
+     *
+     * @return roles no eliminados, sin un orden garantizado
+     */
+    List<Role> findAllByDeletedFalse();
 
 }

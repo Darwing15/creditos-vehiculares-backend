@@ -1,10 +1,10 @@
 package pe.sotomayor.creditos.security.infrastructure.security.filter;
 
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -12,27 +12,32 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
 
-import pe.sotomayor.creditos.security.domain.model.entity.Branch;
-import pe.sotomayor.creditos.security.domain.model.entity.Role;
-import pe.sotomayor.creditos.security.domain.model.entity.User;
-
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import pe.sotomayor.creditos.security.infrastructure.security.config.SecurityErrorHandler;
 import pe.sotomayor.creditos.security.infrastructure.security.jwt.JwtService;
+import pe.sotomayor.creditos.security.infrastructure.security.model.SecurityPrincipal;
 import pe.sotomayor.creditos.security.infrastructure.security.service.CustomUserDetailsService;
 
-import java.io.IOException;
-import java.util.Collections;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -42,400 +47,382 @@ import static org.mockito.Mockito.when;
 class JwtAuthenticationFilterTest {
 
     @Mock
-    private JwtService jwtService;
+    private JwtService jwt;
 
     @Mock
-    private CustomUserDetailsService userDetailsService;
+    private CustomUserDetailsService users;
 
     @Mock
-    private FilterChain filterChain;
+    private SecurityErrorHandler errors;
+
+    @Mock
+    private FilterChain chain;
 
     @InjectMocks
-    private JwtAuthenticationFilter jwtAuthenticationFilter;
-
-    private MockHttpServletResponse response;
-
-    @BeforeEach
-    void setUp() {
-
-        response = new MockHttpServletResponse();
-
-        SecurityContextHolder.clearContext();
-    }
+    private JwtAuthenticationFilter service;
 
     @AfterEach
     void tearDown() {
-
         SecurityContextHolder.clearContext();
     }
 
     @Test
-    void shouldAuthenticateRequestWhenJwtIsValid()
-            throws ServletException, IOException {
-
+    void shouldContinueAnonymouslyWhenHeaderIsAbsent() throws Exception {
         /* Arrange */
-
+        SecurityContextHolder.clearContext();
         MockHttpServletRequest request = createRequest();
-
-        User user = createUser();
-
-        UserDetails userDetails = createUserDetails();
-
-        when(jwtService.extractUsername("jwt-token"))
-                .thenReturn(user.getEmail());
-
-        when(jwtService.isTokenValid("jwt-token"))
-                .thenReturn(true);
-
-        when(jwtService.extractTokenVersion("jwt-token"))
-                .thenReturn(user.getTokenVersion());
-
-        when(userDetailsService.loadDomainUser(
-                user.getEmail()))
-                .thenReturn(user);
-
-        when(userDetailsService.loadUserByUsername(
-                user.getEmail()))
-                .thenReturn(userDetails);
+        MockHttpServletResponse response = new MockHttpServletResponse();
 
         /* Act */
-
-        jwtAuthenticationFilter.doFilterInternal(
-                request,
-                response,
-                filterChain);
+        service.doFilter(request, response, chain);
 
         /* Assert */
-
-        Authentication authentication =
-                SecurityContextHolder
-                        .getContext()
-                        .getAuthentication();
-
-        assertThat(authentication)
-                .isNotNull();
-
-        assertThat(authentication.getPrincipal())
-                .isEqualTo(userDetails);
-
-        assertThat(authentication.isAuthenticated())
-                .isTrue();
-
-        verify(filterChain).doFilter(request, response);
-
-        verifyNoMoreInteractions(filterChain);
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        verify(chain).doFilter(request, response);
+        verifyNoInteractions(jwt, users, errors);
+        verifyNoMoreInteractions(chain, jwt, users, errors);
     }
 
     @Test
-    void shouldContinueFilterChainWhenAuthorizationHeaderIsMissing()
-            throws ServletException, IOException {
-
+    void shouldSkipTokenWhenRequestIsPreflight() throws Exception {
         /* Arrange */
-
-        MockHttpServletRequest request =
-                new MockHttpServletRequest();
-
-        /* Act */
-
-        jwtAuthenticationFilter.doFilterInternal(
-                request,
-                response,
-                filterChain);
-
-        /* Assert */
-
-        assertThat(SecurityContextHolder.getContext()
-                .getAuthentication())
-                .isNull();
-
-        verify(filterChain)
-                .doFilter(request, response);
-
-        verifyNoMoreInteractions(filterChain);
-    }
-
-    @Test
-    void shouldContinueFilterChainWhenAuthorizationHeaderIsNotBearer()
-            throws ServletException, IOException {
-
-        /* Arrange */
-
-        MockHttpServletRequest request =
-                new MockHttpServletRequest();
-
-        request.addHeader(
-                "Authorization",
-                "Basic dXNlcjpwYXNz");
-
-        /* Act */
-
-        jwtAuthenticationFilter.doFilterInternal(
-                request,
-                response,
-                filterChain);
-
-        /* Assert */
-
-        assertThat(SecurityContextHolder.getContext()
-                .getAuthentication())
-                .isNull();
-
-        verify(filterChain)
-                .doFilter(request, response);
-
-        verifyNoMoreInteractions(filterChain);
-    }
-
-    @Test
-    void shouldContinueFilterChainWhenUsernameIsNull()
-            throws ServletException, IOException {
-
-        /* Arrange */
-
-        MockHttpServletRequest request =
-                createRequest();
-
-        when(jwtService.extractUsername("jwt-token"))
-                .thenReturn(null);
-
-        /* Act */
-
-        jwtAuthenticationFilter.doFilterInternal(
-                request,
-                response,
-                filterChain);
-
-        /* Assert */
-
-        assertThat(SecurityContextHolder.getContext()
-                .getAuthentication())
-                .isNull();
-
-        verify(filterChain)
-                .doFilter(request, response);
-
-        verifyNoMoreInteractions(filterChain);
-    }
-
-    @Test
-    void shouldContinueFilterChainWhenAuthenticationAlreadyExists()
-            throws ServletException, IOException {
-
-        /* Arrange */
-
-        MockHttpServletRequest request =
-                createRequest();
-
-        Authentication existingAuthentication =
-                createAuthentication();
-
-        SecurityContextHolder.getContext()
-                .setAuthentication(existingAuthentication);
-
-        when(jwtService.extractUsername("jwt-token"))
-                .thenReturn("darwin@creditos.com");
-
-        /* Act */
-
-        jwtAuthenticationFilter.doFilterInternal(
-                request,
-                response,
-                filterChain);
-
-        /* Assert */
-
-        Authentication authentication =
-                SecurityContextHolder
-                        .getContext()
-                        .getAuthentication();
-
-        assertThat(authentication)
-                .isSameAs(existingAuthentication);
-
-        verifyNoInteractions(userDetailsService);
-
-        verify(filterChain)
-                .doFilter(request, response);
-
-        verifyNoMoreInteractions(filterChain);
-    }
-
-    @Test
-    void shouldContinueFilterChainWhenTokenIsInvalid()
-            throws ServletException, IOException {
-
-        /* Arrange */
-
-        MockHttpServletRequest request =
-                createRequest();
-
-        when(jwtService.extractUsername("jwt-token"))
-                .thenReturn("darwin@creditos.com");
-
-        when(jwtService.isTokenValid("jwt-token"))
-                .thenReturn(false);
-
-        /* Act */
-
-        jwtAuthenticationFilter.doFilterInternal(
-                request,
-                response,
-                filterChain);
-
-        /* Assert */
-
-        assertThat(SecurityContextHolder.getContext()
-                .getAuthentication())
-                .isNull();
-
-        verify(filterChain)
-                .doFilter(request, response);
-
-        verifyNoMoreInteractions(filterChain);
-    }
-
-    @Test
-    void shouldNotAuthenticateWhenTokenVersionDoesNotMatch()
-            throws ServletException, IOException {
-
-        /* Arrange */
-
-        MockHttpServletRequest request =
-                createRequest();
-
-        User user = createUser();
-
-        when(jwtService.extractUsername("jwt-token"))
-                .thenReturn(user.getEmail());
-
-        when(jwtService.isTokenValid("jwt-token"))
-                .thenReturn(true);
-
-        when(jwtService.extractTokenVersion("jwt-token"))
-                .thenReturn(99L);
-
-        when(userDetailsService.loadDomainUser(user.getEmail()))
-                .thenReturn(user);
-
-        /* Act */
-
-        jwtAuthenticationFilter.doFilterInternal(
-                request,
-                response,
-                filterChain);
-
-        /* Assert */
-
-        assertThat(SecurityContextHolder.getContext()
-                .getAuthentication())
-                .isNull();
-
-        verify(userDetailsService).
-                loadDomainUser(user.getEmail());
-
-        verify(filterChain)
-                .doFilter(request, response);
-
-        verifyNoMoreInteractions(
-                userDetailsService,
-                filterChain);
-    }
-
-    @Test
-    void shouldClearSecurityContextWhenAuthenticationFails()
-            throws ServletException, IOException {
-
-        /* Arrange */
-
+        SecurityContextHolder.clearContext();
         MockHttpServletRequest request = createRequest();
-
-        SecurityContextHolder.getContext()
-                .setAuthentication(createAuthentication());
-
-        when(jwtService.extractUsername("jwt-token"))
-                .thenThrow(new RuntimeException("JWT error"));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        request.setMethod("OPTIONS");
+        request.setServletPath("/api/auth/me");
+        request.addHeader("Authorization", "invalid");
 
         /* Act */
-
-        jwtAuthenticationFilter.doFilterInternal(
-                request,
-                response,
-                filterChain);
+        service.doFilter(request, response, chain);
 
         /* Assert */
-
-        assertThat(SecurityContextHolder.getContext()
-                .getAuthentication())
-                .isNull();
-
-        verify(filterChain)
-                .doFilter(request, response);
-
-        verifyNoMoreInteractions(filterChain);
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        verify(chain).doFilter(request, response);
+        verifyNoInteractions(jwt, users, errors);
+        verifyNoMoreInteractions(chain, jwt, users, errors);
     }
 
-    private MockHttpServletRequest createRequest() {
-        MockHttpServletRequest request =
-                new MockHttpServletRequest();
+    @Test
+    void shouldSkipTokenWhenRequestIsLogin() throws Exception {
+        /* Arrange */
+        SecurityContextHolder.clearContext();
+        MockHttpServletRequest request = createRequest();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        request.setMethod("POST");
+        request.setServletPath("/api/auth/login");
+        request.addHeader("Authorization", "invalid");
 
-        request.addHeader(
-                "Authorization",
-                "Bearer jwt-token");
+        /* Act */
+        service.doFilter(request, response, chain);
 
-        return request;
+        /* Assert */
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        verify(chain).doFilter(request, response);
+        verifyNoInteractions(jwt, users, errors);
+        verifyNoMoreInteractions(chain, jwt, users, errors);
     }
 
-    private Authentication createAuthentication() {
+    @Test
+    void shouldAuthenticateWithFreshAuthoritiesWhenTokenIsValid() throws Exception {
+        /* Arrange */
+        SecurityContextHolder.clearContext();
+        MockHttpServletRequest request = createRequest();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        request.addHeader("Authorization", "bEaReR signed-token");
+        SecurityPrincipal principal = createPrincipal();
+        when(jwt.parseAccessToken("signed-token")).thenReturn(new JwtService.AccessToken(1L, 1L));
+        when(users.loadUserById(1L)).thenReturn(principal);
 
-        return new UsernamePasswordAuthenticationToken(
-                "darwin@creditos.com",
-                null,
-                Collections.emptyList()
+        /* Act */
+        service.doFilter(request, response, chain);
+
+        /* Assert */
+        Authentication result = SecurityContextHolder.getContext().getAuthentication();
+        assertThat(result).isNotNull();
+        assertThat(result.isAuthenticated()).isTrue();
+        assertThat(result.getPrincipal()).isSameAs(principal);
+        assertThat(result.getAuthorities()).extracting("authority").containsExactly("security:users:read");
+        assertThat(principal.getPassword()).isNull();
+        assertThat(result.getCredentials()).isNull();
+        verify(jwt).parseAccessToken("signed-token");
+        verify(users).loadUserById(1L);
+        verify(chain).doFilter(request, response);
+        verifyNoInteractions(errors);
+        verifyNoMoreInteractions(chain, jwt, users, errors);
+    }
+
+    @Test
+    void shouldRejectHeaderWhenSchemeIsWrong() throws Exception {
+        /* Arrange */
+        SecurityContextHolder.clearContext();
+        MockHttpServletRequest request = createRequest();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        request.addHeader("Authorization", "Basic abc");
+        SecurityContextHolder.getContext().setAuthentication(createAuthentication(createPrincipal()));
+
+        /* Act */
+        service.doFilter(request, response, chain);
+
+        /* Assert */
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        verify(errors).commence(eq(request), eq(response), any(BadCredentialsException.class));
+        verifyNoInteractions(jwt, users, chain);
+        verifyNoMoreInteractions(chain, jwt, users, errors);
+    }
+
+    @Test
+    void shouldRejectHeaderWhenTokenIsEmpty() throws Exception {
+        /* Arrange */
+        SecurityContextHolder.clearContext();
+        MockHttpServletRequest request = createRequest();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        request.addHeader("Authorization", "Bearer ");
+        SecurityContextHolder.getContext().setAuthentication(createAuthentication(createPrincipal()));
+
+        /* Act */
+        service.doFilter(request, response, chain);
+
+        /* Assert */
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        verify(errors).commence(eq(request), eq(response), any(BadCredentialsException.class));
+        verifyNoInteractions(jwt, users, chain);
+        verifyNoMoreInteractions(chain, jwt, users, errors);
+    }
+
+    @Test
+    void shouldRejectHeaderWhenTokenHasWhitespace() throws Exception {
+        /* Arrange */
+        SecurityContextHolder.clearContext();
+        MockHttpServletRequest request = createRequest();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        request.addHeader("Authorization", "Bearer a b");
+        SecurityContextHolder.getContext().setAuthentication(createAuthentication(createPrincipal()));
+
+        /* Act */
+        service.doFilter(request, response, chain);
+
+        /* Assert */
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        verify(errors).commence(eq(request), eq(response), any(BadCredentialsException.class));
+        verifyNoInteractions(jwt, users, chain);
+        verifyNoMoreInteractions(chain, jwt, users, errors);
+    }
+
+    @Test
+    void shouldRejectHeaderWhenHeadersAreDuplicated() throws Exception {
+        /* Arrange */
+        SecurityContextHolder.clearContext();
+        MockHttpServletRequest request = createRequest();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        request.addHeader("Authorization", "Bearer one");
+        request.addHeader("Authorization", "Bearer two");
+        SecurityContextHolder.getContext().setAuthentication(createAuthentication(createPrincipal()));
+
+        /* Act */
+        service.doFilter(request, response, chain);
+
+        /* Assert */
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        verify(errors).commence(eq(request), eq(response), any(BadCredentialsException.class));
+        verifyNoInteractions(jwt, users, chain);
+        verifyNoMoreInteractions(chain, jwt, users, errors);
+    }
+
+    @Test
+    void shouldRejectHeaderWhenHeaderIsTooLong() throws Exception {
+        /* Arrange */
+        SecurityContextHolder.clearContext();
+        MockHttpServletRequest request = createRequest();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        request.addHeader("Authorization", "Bearer " + "a".repeat(8192));
+        SecurityContextHolder.getContext().setAuthentication(createAuthentication(createPrincipal()));
+
+        /* Act */
+        service.doFilter(request, response, chain);
+
+        /* Assert */
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        verify(errors).commence(eq(request), eq(response), any(BadCredentialsException.class));
+        verifyNoInteractions(jwt, users, chain);
+        verifyNoMoreInteractions(chain, jwt, users, errors);
+    }
+
+    @Test
+    void shouldStopAuthenticationWhenMalformed() throws Exception {
+        /* Arrange */
+        SecurityContextHolder.clearContext();
+        MockHttpServletRequest request = createRequest();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        request.addHeader("Authorization", "Bearer signed-token");
+        SecurityContextHolder.getContext().setAuthentication(createAuthentication(createPrincipal()));
+        when(jwt.parseAccessToken("signed-token")).thenThrow(new JwtException("invalid"));
+
+        /* Act */
+        service.doFilter(request, response, chain);
+
+        /* Assert */
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        verify(jwt).parseAccessToken("signed-token");
+        verifyNoInteractions(users);
+        verify(errors).commence(eq(request), eq(response), any(BadCredentialsException.class));
+        verifyNoInteractions(chain);
+        verifyNoMoreInteractions(chain, jwt, users, errors);
+    }
+
+    @Test
+    void shouldStopAuthenticationWhenRevoked() throws Exception {
+        /* Arrange */
+        SecurityContextHolder.clearContext();
+        MockHttpServletRequest request = createRequest();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        request.addHeader("Authorization", "Bearer signed-token");
+        SecurityContextHolder.getContext().setAuthentication(createAuthentication(createPrincipal()));
+        when(jwt.parseAccessToken("signed-token")).thenReturn(new JwtService.AccessToken(1L, 2L));
+        when(users.loadUserById(1L)).thenReturn(createPrincipal());
+
+        /* Act */
+        service.doFilter(request, response, chain);
+
+        /* Assert */
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        verify(jwt).parseAccessToken("signed-token");
+        verify(users).loadUserById(1L);
+        verify(errors).commence(eq(request), eq(response), any(BadCredentialsException.class));
+        verifyNoInteractions(chain);
+        verifyNoMoreInteractions(chain, jwt, users, errors);
+    }
+
+    @Test
+    void shouldStopAuthenticationWhenDisabled() throws Exception {
+        /* Arrange */
+        SecurityContextHolder.clearContext();
+        MockHttpServletRequest request = createRequest();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        request.addHeader("Authorization", "Bearer signed-token");
+        SecurityContextHolder.getContext().setAuthentication(createAuthentication(createPrincipal()));
+        when(jwt.parseAccessToken("signed-token")).thenReturn(new JwtService.AccessToken(1L, 1L));
+        SecurityPrincipal valid = createPrincipal();
+        SecurityPrincipal principal = new SecurityPrincipal(
+                1L,
+                1L,
+                valid.getFullName(),
+                valid.getUsername(),
+                valid.getPassword(),
+                2L,
+                "Operador",
+                3L,
+                "Lima",
+                false,
+                valid.getAuthorities()
+        );
+        when(users.loadUserById(1L)).thenReturn(principal);
+
+        /* Act */
+        service.doFilter(request, response, chain);
+
+        /* Assert */
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        verify(jwt).parseAccessToken("signed-token");
+        verify(users).loadUserById(1L);
+        verify(errors).commence(eq(request), eq(response), any(BadCredentialsException.class));
+        verifyNoInteractions(chain);
+        verifyNoMoreInteractions(chain, jwt, users, errors);
+    }
+
+    @Test
+    void shouldStopAuthenticationWhenUserMissing() throws Exception {
+        /* Arrange */
+        SecurityContextHolder.clearContext();
+        MockHttpServletRequest request = createRequest();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        request.addHeader("Authorization", "Bearer signed-token");
+        SecurityContextHolder.getContext().setAuthentication(createAuthentication(createPrincipal()));
+        when(jwt.parseAccessToken("signed-token")).thenReturn(new JwtService.AccessToken(1L, 1L));
+        when(users.loadUserById(1L)).thenThrow(new UsernameNotFoundException("missing"));
+
+        /* Act */
+        service.doFilter(request, response, chain);
+
+        /* Assert */
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        verify(jwt).parseAccessToken("signed-token");
+        verify(users).loadUserById(1L);
+        verify(errors).commence(eq(request), eq(response), any(BadCredentialsException.class));
+        verifyNoInteractions(chain);
+        verifyNoMoreInteractions(chain, jwt, users, errors);
+    }
+
+    @Test
+    void shouldStopAuthenticationWhenDatabaseUnavailable() throws Exception {
+        /* Arrange */
+        SecurityContextHolder.clearContext();
+        MockHttpServletRequest request = createRequest();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        request.addHeader("Authorization", "Bearer signed-token");
+        SecurityContextHolder.getContext().setAuthentication(createAuthentication(createPrincipal()));
+        when(jwt.parseAccessToken("signed-token")).thenReturn(new JwtService.AccessToken(1L, 1L));
+        when(users.loadUserById(1L)).thenThrow(new DataAccessResourceFailureException("offline"));
+
+        /* Act */
+        service.doFilter(request, response, chain);
+
+        /* Assert */
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        verify(jwt).parseAccessToken("signed-token");
+        verify(users).loadUserById(1L);
+        verify(errors).unavailable(request, response);
+        verifyNoInteractions(chain);
+        verifyNoMoreInteractions(chain, jwt, users, errors);
+    }
+
+    @Test
+    void shouldPropagateDownstreamFailureWhenAuthenticationAlreadySucceeded() throws Exception {
+        /* Arrange */
+        SecurityContextHolder.clearContext();
+        MockHttpServletRequest request = createRequest();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        request.addHeader("Authorization", "Bearer signed-token");
+        when(jwt.parseAccessToken("signed-token")).thenReturn(new JwtService.AccessToken(1L, 1L));
+        when(users.loadUserById(1L)).thenReturn(createPrincipal());
+        ServletException failure = new ServletException("controller failure");
+        doThrow(failure).when(chain).doFilter(request, response);
+
+        /* Act */
+        Throwable thrown = catchThrowable(() -> service.doFilter(request, response, chain));
+
+        /* Assert */
+        assertThat(thrown).isSameAs(failure);
+        verify(jwt).parseAccessToken("signed-token");
+        verify(users).loadUserById(1L);
+        verify(chain).doFilter(request, response);
+        verifyNoInteractions(errors);
+        verifyNoMoreInteractions(chain, jwt, users, errors);
+    }
+
+    private SecurityPrincipal createPrincipal() {
+        return new SecurityPrincipal(
+                1L,
+                1L,
+                "Ana Perez",
+                "ana@test.com",
+                "encoded-password",
+                2L,
+                "Operador",
+                3L,
+                "Lima",
+                true,
+                List.of(new SimpleGrantedAuthority("security:users:read"))
         );
     }
 
-    private UserDetails createUserDetails() {
-
-        return org.springframework.security.core.userdetails.User
-                .withUsername("darwin@creditos.com")
-                .password("password")
-                .authorities(Collections.emptyList())
-                .build();
+    private MockHttpServletRequest createRequest() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/auth/me");
+        request.setServletPath("/api/auth/me");
+        return request;
     }
 
-    private User createUser() {
-
-        User user = new User();
-
-        user.setId(1L);
-        user.setFullName("Darwin G.");
-        user.setEmail("darwin@creditos.com");
-        user.setPassword("$2a$10$passwordHash");
-        user.setRole(createRole());
-        user.setBranch(createBranch());
-        user.setActive(true);
-        user.setTokenVersion(1L);
-
-        return user;
-    }
-
-    private Role createRole() {
-
-        Role role = new Role();
-
-        role.setId(1L);
-        role.setName("Administrador");
-
-        return role;
-    }
-
-    private Branch createBranch() {
-
-        Branch branch = new Branch();
-
-        branch.setId(1L);
-        branch.setName("Sede Tocache");
-
-        return branch;
+    private Authentication createAuthentication(SecurityPrincipal principal) {
+        return new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
     }
 }

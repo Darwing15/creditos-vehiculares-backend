@@ -15,10 +15,10 @@ import pe.sotomayor.creditos.security.domain.repository.BranchRepository;
 
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
@@ -32,153 +32,62 @@ class ListBranchesServiceTest {
     private BranchMapper branchMapper;
 
     @InjectMocks
-    private ListBranchesService listBranchesService;
+    private ListBranchesService service;
 
     @Test
-    void shouldReturnBranchesWhenBranchesExist() {
-
+    void shouldMapResultsWhenRecordsExist() throws Exception {
         /* Arrange */
-
-        Branch tocache =
-                createBranch(
-                        1L,
-                        "TOC01",
-                        "Sucursal Tocache"
-                );
-
-        Branch tarapoto =
-                createBranch(
-                        2L,
-                        "TAR01",
-                        "Sucursal Tarapoto"
-                );
-
-        List<Branch> branches = List.of(
-                tocache,
-                tarapoto
-        );
-
-        BranchResponse tocacheResponse =
-                createResponse(
-                        1L,
-                        "TOC01",
-                        "Sucursal Tocache"
-                );
-
-        BranchResponse tarapotoResponse =
-                createResponse(
-                        2L,
-                        "TAR01",
-                        "Sucursal Tarapoto"
-                );
-
-        when(branchRepository.findAll())
-                .thenReturn(branches);
-
-        when(branchMapper.toResponse(tocache))
-                .thenReturn(tocacheResponse);
-
-        when(branchMapper.toResponse(tarapoto))
-                .thenReturn(tarapotoResponse);
+        Branch entity = createBranch();
+        BranchResponse expected = createResponse();
+        when(branchRepository.findAllByDeletedFalse()).thenReturn(List.of(entity));
+        when(branchMapper.toResponse(entity)).thenReturn(expected);
 
         /* Act */
-
-        List<BranchResponse> result =
-                listBranchesService.findAll();
+        List<BranchResponse> result = service.findAll();
 
         /* Assert */
-
-        assertNotNull(result);
-
-        assertEquals(
-                2,
-                result.size()
-        );
-
-        assertEquals(
-                "TOC01",
-                result.get(0).code()
-        );
-
-        assertEquals(
-                "TAR01",
-                result.get(1).code()
-        );
-
-        verify(branchRepository).findAll();
-        verify(branchMapper).toResponse(tocache);
-        verify(branchMapper).toResponse(tarapoto);
-
-        verifyNoMoreInteractions(
-                branchRepository,
-                branchMapper
-        );
+        assertThat(result).containsExactly(expected);
+        verify(branchRepository).findAllByDeletedFalse();
+        verify(branchMapper).toResponse(entity);
+        verifyNoMoreInteractions(branchRepository, branchMapper);
     }
 
     @Test
-    void shouldReturnEmptyListWhenNoBranchesExist() {
-
+    void shouldReturnEmptyListWhenNoRecordsExist() throws Exception {
         /* Arrange */
-
-        when(branchRepository.findAll()).thenReturn(List.of());
+        when(branchRepository.findAllByDeletedFalse()).thenReturn(List.of());
 
         /* Act */
-
-        List<BranchResponse> result = listBranchesService.findAll();
+        List<BranchResponse> result = service.findAll();
 
         /* Assert */
-
-        assertNotNull(result);
-
-        assertEquals(
-                0,
-                result.size()
-        );
-
-        verify(branchRepository).findAll();
-
-        verifyNoMoreInteractions(
-                branchRepository,
-                branchMapper
-        );
+        assertThat(result).isEmpty();
+        verify(branchRepository).findAllByDeletedFalse();
+        verifyNoInteractions(branchMapper);
+        verifyNoMoreInteractions(branchRepository, branchMapper);
     }
 
-    private Branch createBranch(
-            Long id,
-            String code,
-            String name) {
-
-        Branch branch = new Branch();
-
-        branch.setId(id);
-
-        branch.setCode(code);
-
-        branch.setName(name);
-
-        branch.setAddress("Av. Principal 123");
-
-        branch.setPhone("987654321");
-
-        branch.setEmail("contacto@creditos.com");
-
-        branch.setActive(true);
-
-        return branch;
+    private Branch createBranch() {
+        return Branch.builder()
+                .id(3L)
+                .code("LIM")
+                .name("Lima")
+                .address("Av. Peru 123")
+                .email("lima@test.com")
+                .phone("999999999")
+                .active(true)
+                .deleted(false)
+                .build();
     }
 
-    private BranchResponse createResponse(
-            Long id,
-            String code,
-            String name) {
-
+    private BranchResponse createResponse() {
         return new BranchResponse(
-                id,
-                code,
-                name,
-                "Av. Principal 123",
-                "987654321",
-                "contacto@creditos.com",
+                3L,
+                "LIM",
+                "Lima",
+                "Av. Peru 123",
+                "999999999",
+                "lima@test.com",
                 null,
                 true
         );

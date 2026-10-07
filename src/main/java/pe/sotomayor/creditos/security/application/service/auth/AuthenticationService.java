@@ -3,119 +3,68 @@ package pe.sotomayor.creditos.security.application.service.auth;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
 
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import pe.sotomayor.creditos.security.application.dto.auth.request.LoginRequest;
 import pe.sotomayor.creditos.security.application.dto.auth.response.LoginResponse;
 
 import pe.sotomayor.creditos.security.application.usecase.auth.AuthenticateUserUseCase;
 
-import pe.sotomayor.creditos.security.domain.model.entity.User;
-import pe.sotomayor.creditos.security.domain.repository.UserRepository;
-
 import pe.sotomayor.creditos.security.infrastructure.security.jwt.JwtService;
 
-import pe.sotomayor.creditos.shared.error.ErrorCode;
-import pe.sotomayor.creditos.shared.exception.ResourceNotFoundException;
+import pe.sotomayor.creditos.security.infrastructure.security.model.SecurityPrincipal;
+
+import java.util.Locale;
 
 /**
- * Implementa el caso de uso encargado de autenticar usuarios.
+ * Coordina la comprobación de credenciales y la emisión de una sesión temporal.
  *
- * <p>
- * Delega la validación de credenciales al {@link AuthenticationManager}
- * de Spring Security. Una vez autenticado el usuario, recupera la
- * información completa desde la base de datos y genera el token JWT
- * que permitirá acceder a los recursos protegidos del sistema.
- * </p>
+ * <p>Reemplaza la segunda lectura por correo: se firma con el principal cuyo
+ * hash fue comprobado, conservando la misma identidad y versión observadas.</p>
  *
  * @author DarwinG
  */
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
 public class AuthenticationService implements AuthenticateUserUseCase {
 
+    /**
+     * Administrador que verifica contraseña y estado de la cuenta mediante el proveedor DAO.
+     */
     private final AuthenticationManager authenticationManager;
 
-    private final UserRepository userRepository;
-
+    /**
+     * Emisor de tokens; no comprueba por sí mismo la contraseña del usuario.
+     */
     private final JwtService jwtService;
 
     /**
-     * Autentica un usuario y genera un token JWT.
+     * Autentica las credenciales y construye la respuesta con duración explícita.
      *
-     * @param request credenciales de acceso
-     * @return información del usuario autenticado
+     * @param request credenciales validadas; la contraseña se conserva exactamente
+     * @return credencial de acceso y datos visibles del mismo principal autenticado
+     * @throws AuthenticationException si fallan credenciales,
+     *                                 estado de cuenta o el proveedor de autenticación
      */
     @Override
     public LoginResponse authenticate(LoginRequest request) {
 
-        Authentication authentication = authenticateUser(request);
+        /* Resultado del proveedor, no una identidad declarada por el cliente. */
+        var authentication = authenticationManager.authenticate(
+                UsernamePasswordAuthenticationToken.unauthenticated(
+                        request.email().strip().toLowerCase(Locale.ROOT),
+                        request.password()));
 
-        User user = findAuthenticatedUser(authentication.getName());
+        /* p es el principal que superó las comprobaciones de ese proveedor. */
+        var p = (SecurityPrincipal) authentication.getPrincipal();
 
-        String token = jwtService.generateToken(user);
-
-        return buildResponse(user, token);
-    }
-
-    /**
-     * Autentica las credenciales utilizando Spring Security.
-     *
-     * @param request credenciales proporcionadas por el usuario
-     * @return autenticación validada
-     */
-    private Authentication authenticateUser(LoginRequest request) {
-
-        return authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        request.email(),
-                        request.password()
-                ));
-    }
-
-    /**
-     * Obtiene el usuario autenticado desde la base de datos.
-     *
-     * @param email correo electrónico autenticado
-     * @return usuario encontrado
-     * @throws ResourceNotFoundException si el usuario no existe
-     */
-    private User findAuthenticatedUser(String email) {
-
-        return userRepository
-                .findUserWithRoleAndBranchByEmail(email)
-                .orElseThrow(() ->
-                        new ResourceNotFoundException(
-                                ErrorCode.USER_NOT_FOUND,
-                                "User not found."));
-    }
-
-    /**
-     * Construye la respuesta de autenticación.
-     *
-     * @param user  usuario autenticado
-     * @param token token JWT generado
-     * @return respuesta enviada al cliente
-     */
-    private LoginResponse buildResponse(
-            User user,
-            String token) {
-
-        return new LoginResponse(
-                token,
-                user.getId(),
-                user.getFullName(),
-                user.getEmail(),
-                user.getRole().getId(),
-                user.getRole().getName(),
-                user.getBranch().getId(),
-                user.getBranch().getName()
-        );
+        return new LoginResponse(jwtService.generateToken(p),
+                p.getUserId(), p.getFullName(), p.getUsername(),
+                p.getRoleId(), p.getRoleName(), p.getBranchId(), p.getBranchName(),
+                "Bearer", jwtService.expiresInSeconds());
     }
 
 }

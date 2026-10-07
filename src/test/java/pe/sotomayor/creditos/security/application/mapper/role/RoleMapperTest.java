@@ -1,91 +1,102 @@
 package pe.sotomayor.creditos.security.application.mapper.role;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-
 import org.junit.jupiter.api.Test;
+
 import org.mapstruct.factory.Mappers;
 
 import pe.sotomayor.creditos.security.application.dto.role.request.CreateRoleRequest;
 import pe.sotomayor.creditos.security.application.dto.role.request.UpdateRoleRequest;
+
 import pe.sotomayor.creditos.security.application.dto.role.response.RoleResponse;
+
 import pe.sotomayor.creditos.security.domain.model.entity.Role;
+
+import java.util.HashSet;
+import java.util.Set;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 class RoleMapperTest {
 
-    private final RoleMapper roleMapper =
+    private final RoleMapper mapper =
             Mappers.getMapper(RoleMapper.class);
 
     @Test
-    void shouldMapRequestToEntity() {
+    void shouldMapPublicFieldsWhenCreatingEntity() throws Exception {
         /* Arrange */
         CreateRoleRequest request = createRequest();
 
         /* Act */
-        Role role = roleMapper.toEntity(request);
+        Role result = mapper.toEntity(request);
 
         /* Assert */
-        assertNotNull(role);
-        assertEquals(request.name(), role.getName());
-        assertEquals(request.description(), role.getDescription());
+        assertThat(result).isNotNull();
+        assertThat(result.getId()).isNull();
+        assertThat(result.getName()).isEqualTo(request.name());
+        assertThat(result.getDescription()).isEqualTo(request.description());
+        assertThat(result.getPermissions()).isEmpty();
+        assertThat(result.getRowVersion()).isNull();
     }
 
     @Test
-    void shouldUpdateEntity() {
-
+    void shouldPreserveProtectedFieldsWhenUpdatingEntity() throws Exception {
         /* Arrange */
-        Role role = createRole();
-
-        UpdateRoleRequest request = updateRequest();
+        Role entity = createRole();
+        entity.setRowVersion(7L);
+        UpdateRoleRequest request = createUpdateRequest();
 
         /* Act */
-
-        roleMapper.updateEntity(request, role);
+        mapper.updateEntity(request, entity);
 
         /* Assert */
-
-        assertEquals(request.name(), role.getName());
-        assertEquals(request.description(), role.getDescription());
-
+        assertThat(entity.getId()).isEqualTo(2L);
+        assertThat(entity.getRowVersion()).isEqualTo(7L);
+        assertThat(entity.getName()).isEqualTo(request.name());
+        assertThat(entity.getDescription()).isEqualTo(request.description());
+        assertThat(entity.getPermissions()).containsExactly("security:users:read");
     }
 
     @Test
-    void shouldMapEntityToResponse() {
+    void shouldMapResponseWhenEntityHasRelations() throws Exception {
         /* Arrange */
-        Role role = createRole();
+        Role entity = createRole();
 
         /* Act */
-        RoleResponse response = roleMapper.toResponse(role);
+        RoleResponse result = mapper.toResponse(entity);
 
         /* Assert */
-        assertNotNull(response);
-        assertEquals(role.getId(), response.id());
-        assertEquals(role.getName(), response.name());
-        assertEquals(role.getDescription(), response.description());
+        assertThat(result).isEqualTo(createResponse());
+    }
+
+    private Role createRole() {
+        return Role.builder()
+                .id(2L)
+                .name("Operador")
+                .description("Consulta de usuarios")
+                .permissions(new HashSet<>(Set.of("security:users:read")))
+                .deleted(false)
+                .build();
+    }
+
+    private RoleResponse createResponse() {
+        return new RoleResponse(
+                2L,
+                "Operador",
+                "Consulta de usuarios"
+        );
     }
 
     private CreateRoleRequest createRequest() {
         return new CreateRoleRequest(
-                "Administrador",
-                "Rol con acceso completo al sistema"
+                "Operador",
+                "Consulta de usuarios"
         );
     }
 
-    private Role createRole() {
-
-        Role role = new Role();
-
-        role.setId(1L);
-        role.setName("Administrador");
-        role.setDescription("Rol con acceso completo al sistema");
-
-        return role;
-    }
-
-    private UpdateRoleRequest updateRequest() {
+    private UpdateRoleRequest createUpdateRequest() {
         return new UpdateRoleRequest(
-                "Administrador",
-                "Rol con acceso completo al sistema actualizado"
+                "Consulta",
+                "Descripcion actualizada"
         );
     }
 

@@ -1,3 +1,5 @@
+# Configuración de referencia, sin secretos reales.
+# @author DarwinG
 server:
   port: 8080
 
@@ -5,10 +7,13 @@ spring:
   application:
     name: credits-system
 
+  banner:
+    location: classpath:banner.txt
+
   datasource:
-    url: jdbc:postgresql://localhost:5432/db_creditos
-    username: postgres
-    password: creditos
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
 
   jpa:
     open-in-view: false
@@ -20,15 +25,21 @@ spring:
 
   security:
     jwt:
-      secret: 7e2d8c0d0e8f6d2b6c8f1a4b9e3f5c7d8a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d
-      expiration: 86400000
+      secret: ${JWT_SECRET_BASE64}
+      expiration: 600000
+      issuer: creditos-api
+      audience: creditos-web
+      clock-skew-seconds: 30
+
+app:
+  security:
+    allowed-origins: ${FRONTEND_ORIGINS:http://localhost:5173}
+    docs-enabled: ${API_DOCS_ENABLED:false}
 
 springdoc:
-  swagger-ui:
-    path: /swagger-ui.html
-
   api-docs:
     path: /v3/api-docs
-
-banner:
-  location: banner.txt
+    enabled: ${app.security.docs-enabled}
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: ${app.security.docs-enabled}

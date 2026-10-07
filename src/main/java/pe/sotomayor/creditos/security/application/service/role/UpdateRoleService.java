@@ -2,7 +2,11 @@ package pe.sotomayor.creditos.security.application.service.role;
 
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.security.access.prepost.PreAuthorize;
+
 import org.springframework.stereotype.Service;
+
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import pe.sotomayor.creditos.security.application.dto.role.request.UpdateRoleRequest;
@@ -12,9 +16,13 @@ import pe.sotomayor.creditos.security.application.mapper.role.RoleMapper;
 import pe.sotomayor.creditos.security.application.usecase.role.UpdateRoleUseCase;
 
 import pe.sotomayor.creditos.security.domain.model.entity.Role;
+import pe.sotomayor.creditos.security.domain.model.enumeration.SecurityPermission;
 import pe.sotomayor.creditos.security.domain.repository.RoleRepository;
 
+import pe.sotomayor.creditos.security.infrastructure.security.service.SecurityWriteGate;
+
 import pe.sotomayor.creditos.shared.error.ErrorCode;
+
 import pe.sotomayor.creditos.shared.exception.ConflictException;
 import pe.sotomayor.creditos.shared.exception.ResourceNotFoundException;
 
@@ -30,13 +38,15 @@ import pe.sotomayor.creditos.shared.exception.ResourceNotFoundException;
  * @author DarwinG
  */
 @Service
-@Transactional
+@Transactional(isolation = Isolation.READ_COMMITTED)
 @RequiredArgsConstructor
 public class UpdateRoleService implements UpdateRoleUseCase {
 
     private final RoleRepository roleRepository;
 
     private final RoleMapper roleMapper;
+
+    private final SecurityWriteGate securityWriteGate;
 
     /**
      * Actualiza la información administrativa de un rol existente.
@@ -51,13 +61,18 @@ public class UpdateRoleService implements UpdateRoleUseCase {
      * @return información del rol actualizado
      */
     @Override
+    @PreAuthorize("hasAuthority('security:roles:write')")
     public RoleResponse update(Long id, UpdateRoleRequest request) {
 
-        Role role = roleRepository.findById(id)
+        var actor = securityWriteGate.begin(SecurityPermission.ROLES_WRITE);
+
+        Role role = roleRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         ErrorCode.ROLE_NOT_FOUND,
                         "Role with id '%s' not found.".formatted(id)
                 ));
+
+        actor.requireSubset(role.getPermissions());
 
         if (roleRepository.existsByNameAndIdNot(
                 request.name(), id)) {
@@ -70,7 +85,8 @@ public class UpdateRoleService implements UpdateRoleUseCase {
 
         roleMapper.updateEntity(request, role);
 
-        Role updatedRole = roleRepository.save(role);
+        Role updatedRole = roleRepository.saveAndFlush(role);
+        securityWriteGate.finish();
 
         return roleMapper.toResponse(updatedRole);
     }

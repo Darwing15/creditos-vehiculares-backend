@@ -7,183 +7,253 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import org.springframework.security.access.AccessDeniedException;
 import pe.sotomayor.creditos.security.application.dto.user.response.UserResponse;
 import pe.sotomayor.creditos.security.application.mapper.user.UserMapper;
 
+import pe.sotomayor.creditos.security.domain.model.entity.Branch;
+import pe.sotomayor.creditos.security.domain.model.entity.Role;
 import pe.sotomayor.creditos.security.domain.model.entity.User;
+
+import pe.sotomayor.creditos.security.domain.model.enumeration.SecurityPermission;
+
+import pe.sotomayor.creditos.security.domain.repository.BranchRepository;
 import pe.sotomayor.creditos.security.domain.repository.UserRepository;
 
+import pe.sotomayor.creditos.security.infrastructure.security.service.SecurityWriteGate;
+import pe.sotomayor.creditos.security.infrastructure.security.service.SecurityWriteGate.WriteContext;
+
 import pe.sotomayor.creditos.shared.error.ErrorCode;
+
 import pe.sotomayor.creditos.shared.exception.ConflictException;
 import pe.sotomayor.creditos.shared.exception.ResourceNotFoundException;
 
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
+
+import static pe.sotomayor.creditos.security.domain.model.enumeration.SecurityPermission.USERS_WRITE;
 
 @ExtendWith(MockitoExtension.class)
 class DeactivateUserServiceTest {
 
     @Mock
-    private UserRepository userRepository;
+    private UserRepository users;
 
     @Mock
-    private UserMapper userMapper;
+    private UserMapper mapper;
+
+    @Mock
+    private BranchRepository branches;
+
+    @Mock
+    private SecurityWriteGate gate;
 
     @InjectMocks
-    private DeactivateUserService deactivateUserService;
+    private DeactivateUserService service;
 
     @Test
-    void shouldDeactivateUserWhenUserExistsAndIsActive() {
-
+    void shouldDeactivateUserWhenDataIsValid() throws Exception {
         /* Arrange */
-
-        Long userId = 1L;
-
-        User user = createUser(userId);
-
-        UserResponse expectedResponse = createResponse(userId);
-
-        when(userRepository.findById(userId))
-                .thenReturn(Optional.of(user));
-
-        when(userRepository.save(user))
-                .thenReturn(user);
-
-        when(userMapper.toResponse(user))
-                .thenReturn(expectedResponse);
+        User user = createUser();
+        when(gate.begin(USERS_WRITE)).thenReturn(createContext());
+        when(users.findByIdAndDeletedFalse(1L)).thenReturn(Optional.of(user));
+        when(branches.existsByManagerId(1L)).thenReturn(false);
+        UserResponse expected = createResponse();
+        when(users.saveAndFlush(user)).thenReturn(user);
+        when(mapper.toResponse(user)).thenReturn(expected);
 
         /* Act */
-
-        UserResponse response = deactivateUserService.deactivate(userId);
+        UserResponse result = service.deactivate(1L);
 
         /* Assert */
-
-        assertNotNull(response);
-
-        assertEquals(
-                userId,
-                response.id()
-        );
-
-        assertFalse(user.getActive());
-        assertFalse(response.active());
-
-        verify(userRepository).findById(userId);
-        verify(userRepository).save(user);
-        verify(userMapper).toResponse(user);
-
-        verifyNoMoreInteractions(
-                userRepository,
-                userMapper
-        );
-
+        assertThat(result).isEqualTo(expected);
+        assertThat(user.getTokenVersion()).isEqualTo(2L);
+        assertThat(user.getActive()).isFalse();
+        assertThat(user.getPassword()).isEqualTo("encoded-password");
+        verify(gate).begin(USERS_WRITE);
+        verify(users).findByIdAndDeletedFalse(1L);
+        verify(branches).existsByManagerId(1L);
+        verify(users).saveAndFlush(user);
+        verify(gate).finish();
+        verify(mapper).toResponse(user);
+        verifyNoMoreInteractions(users, mapper, branches, gate);
     }
 
     @Test
-    void shouldThrowResourceNotFoundExceptionWhenUserDoesNotExist() {
-
+    void shouldStopBeforeReadingDataWhenWriteGateDeniesAccess() throws Exception {
         /* Arrange */
+        when(gate.begin(USERS_WRITE)).thenThrow(new AccessDeniedException("denied"));
 
-        Long userId = 1L;
+        /* Act */
+        Throwable thrown = catchThrowable(() -> service.deactivate(1L));
 
-        when(userRepository.findById(userId))
-                .thenReturn(Optional.empty());
-
-        /* Act & Assert */
-
-        ResourceNotFoundException exception =
-                assertThrows(
-                        ResourceNotFoundException.class,
-                        () ->
-                                deactivateUserService.deactivate(userId)
-                );
-
-        assertEquals(
-                ErrorCode.USER_NOT_FOUND,
-                exception.getErrorCode()
-        );
-
-        verify(userRepository)
-                .findById(userId);
-
-        verifyNoMoreInteractions(
-                userRepository,
-                userMapper
-        );
-
+        /* Assert */
+        assertThat(thrown).isInstanceOf(AccessDeniedException.class);
+        verify(gate).begin(USERS_WRITE);
+        verifyNoInteractions(users, mapper, branches);
+        verifyNoMoreInteractions(users, mapper, branches, gate);
     }
 
     @Test
-    void shouldThrowConflictExceptionWhenUserIsAlreadyInactive() {
-
+    void shouldThrowNotFoundWhenUserDoesNotExist() throws Exception {
         /* Arrange */
+        User user = createUser();
+        when(gate.begin(USERS_WRITE)).thenReturn(createContext());
+        when(users.findByIdAndDeletedFalse(1L)).thenReturn(Optional.empty());
 
-        Long userId = 1L;
+        /* Act */
+        Throwable thrown = catchThrowable(() -> service.deactivate(1L));
 
-        User user = createUser(userId);
+        /* Assert */
+        assertThat(thrown).isInstanceOf(ResourceNotFoundException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.USER_NOT_FOUND);
+        verify(gate).begin(USERS_WRITE);
+        verify(users).findByIdAndDeletedFalse(1L);
+        verifyNoInteractions(mapper);
+        verifyNoMoreInteractions(users, mapper, branches, gate);
+    }
 
+    @Test
+    void shouldRejectDeactivationWhenUserIsBranchManager() throws Exception {
+        /* Arrange */
+        User user = createUser();
+        when(gate.begin(USERS_WRITE)).thenReturn(createContext());
+        when(users.findByIdAndDeletedFalse(1L)).thenReturn(Optional.of(user));
+        when(branches.existsByManagerId(1L)).thenReturn(true);
+
+        /* Act */
+        Throwable thrown = catchThrowable(() -> service.deactivate(1L));
+
+        /* Assert */
+        assertThat(thrown).isInstanceOf(ConflictException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.VALIDATION_ERROR);
+        verify(gate).begin(USERS_WRITE);
+        verify(users).findByIdAndDeletedFalse(1L);
+        verify(branches).existsByManagerId(1L);
+        verifyNoInteractions(mapper);
+        verifyNoMoreInteractions(users, mapper, branches, gate);
+    }
+
+    @Test
+    void shouldRejectDeactivationWhenTargetIsSelf() throws Exception {
+        /* Arrange */
+        User user = createUser();
+        when(gate.begin(USERS_WRITE)).thenReturn(new WriteContext(1L, SecurityPermission.authorities()));
+        when(users.findByIdAndDeletedFalse(1L)).thenReturn(Optional.of(user));
+
+        /* Act */
+        Throwable thrown = catchThrowable(() -> service.deactivate(1L));
+
+        /* Assert */
+        assertThat(thrown).isInstanceOf(ConflictException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.SECURITY_SELF_DEACTIVATION);
+        assertThat(user.getTokenVersion()).isEqualTo(1L);
+        verify(gate).begin(USERS_WRITE);
+        verify(users).findByIdAndDeletedFalse(1L);
+        verifyNoInteractions(mapper, branches);
+        verifyNoMoreInteractions(users, mapper, branches, gate);
+    }
+
+    @Test
+    void shouldRejectDeactivationWhenTargetIsInactive() throws Exception {
+        /* Arrange */
+        User user = createUser();
+        when(gate.begin(USERS_WRITE)).thenReturn(createContext());
+        when(users.findByIdAndDeletedFalse(1L)).thenReturn(Optional.of(user));
         user.setActive(false);
 
-        when(userRepository.findById(userId))
-                .thenReturn(Optional.of(user));
+        /* Act */
+        Throwable thrown = catchThrowable(() -> service.deactivate(1L));
 
-        /* Act & Assert */
-
-        ConflictException exception =
-                assertThrows(
-                        ConflictException.class,
-                        () ->
-                                deactivateUserService.deactivate(userId)
-                );
-
-        assertEquals(
-                ErrorCode.USER_INACTIVE,
-                exception.getErrorCode()
-        );
-
-        verify(userRepository)
-                .findById(userId);
-
-        verifyNoMoreInteractions(
-                userRepository,
-                userMapper
-        );
-
+        /* Assert */
+        assertThat(thrown).isInstanceOf(ConflictException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.USER_INACTIVE);
+        assertThat(user.getTokenVersion()).isEqualTo(1L);
+        verify(gate).begin(USERS_WRITE);
+        verify(users).findByIdAndDeletedFalse(1L);
+        verifyNoInteractions(mapper, branches);
+        verifyNoMoreInteractions(users, mapper, branches, gate);
     }
 
-    private User createUser(Long id) {
+    @Test
+    void shouldRejectDeactivationWhenTargetIsSuperior() throws Exception {
+        /* Arrange */
+        User user = createUser();
+        when(gate.begin(USERS_WRITE)).thenReturn(new WriteContext(99L, Set.of("security:users:write")));
+        when(users.findByIdAndDeletedFalse(1L)).thenReturn(Optional.of(user));
 
-        User user = new User();
+        /* Act */
+        Throwable thrown = catchThrowable(() -> service.deactivate(1L));
 
-        user.setId(id);
-
-        user.setFullName("Juan P�rez");
-
-        user.setEmail("juan@test.com");
-
-        user.setActive(true);
-
-        return user;
+        /* Assert */
+        assertThat(thrown).isInstanceOf(AccessDeniedException.class);
+        assertThat(user.getTokenVersion()).isEqualTo(1L);
+        verify(gate).begin(USERS_WRITE);
+        verify(users).findByIdAndDeletedFalse(1L);
+        verifyNoInteractions(mapper, branches);
+        verifyNoMoreInteractions(users, mapper, branches, gate);
     }
 
-    private UserResponse createResponse(Long userId) {
+    private User createUser() {
+        return User.builder()
+                .id(1L)
+                .fullName("Ana Perez")
+                .email("ana@test.com")
+                .password("encoded-password")
+                .active(true)
+                .deleted(false)
+                .tokenVersion(1L)
+                .role(createRole())
+                .branch(createBranch())
+                .build();
+    }
+
+    private Role createRole() {
+        return Role.builder()
+                .id(2L)
+                .name("Operador")
+                .description("Consulta de usuarios")
+                .permissions(new HashSet<>(Set.of("security:users:read")))
+                .deleted(false)
+                .build();
+    }
+
+    private Branch createBranch() {
+        return Branch.builder()
+                .id(3L)
+                .code("LIM")
+                .name("Lima")
+                .address("Av. Peru 123")
+                .email("lima@test.com")
+                .phone("999999999")
+                .active(true)
+                .deleted(false)
+                .build();
+    }
+
+    private WriteContext createContext() {
+        return new WriteContext(99L, SecurityPermission.authorities());
+    }
+
+    private UserResponse createResponse() {
         return new UserResponse(
-                userId,
-                "Juan Pérez",
-                "juan@test.com",
                 1L,
-                "Administrador",
-                1L,
-                "Sede Tocache",
-                false
+                "Ana Perez",
+                "ana@test.com",
+                2L,
+                "Operador",
+                3L,
+                "Lima",
+                true
         );
     }
 

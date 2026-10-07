@@ -6,12 +6,14 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -87,26 +89,15 @@ public class User extends ActivatableEntity {
     private String password;
 
     /**
-     * Versión del token de autenticación.
-     *
-     * <p>
-     * Este valor se incrementa cada vez que el usuario modifica su
-     * contraseña o cuando se requiere invalidar todas las sesiones
-     * activas.
-     * </p>
-     *
-     * <p>
-     * Cada token JWT almacena la versión vigente al momento de ser
-     * generado. Durante la autenticación dicha versión es comparada
-     * con la registrada en la base de datos para determinar si el
-     * token continúa siendo válido.
-     * </p>
+     * Versión de revocación de sesiones. Los JWT anteriores dejan de ser válidos
+     * al incrementar este valor; el valor inicial también se aplica al builder.
      */
+    @Builder.Default
     @Column(
             name = "token_version",
             nullable = false
     )
-    private Long tokenVersion;
+    private Long tokenVersion = 1L;
 
     /**
      * Rol asignado al usuario.
@@ -129,8 +120,20 @@ public class User extends ActivatableEntity {
     private Branch branch;
 
     /**
-     * Incrementa la versión del token utilizada para invalidar
-     * los JWT emitidos previamente.
+     * Versión de concurrencia administrada por Hibernate; una escritura basada en
+     * una versión anterior se rechaza para evitar la pérdida de cambios.
+     */
+    @Version
+    @Column(name = "row_version", nullable = false)
+    private Long rowVersion;
+
+    /**
+     * Incrementa la versión que deben presentar los tokens del usuario.
+     *
+     * <p>El servicio debe persistir el cambio en su transacción para que la
+     * revocación sea visible. Se utiliza cuando cambia la contraseña, se cierran
+     * sesiones o se modifica información de seguridad que exige una nueva sesión.
+     * No sustituye la versión de concurrencia JPA.</p>
      */
     public void increaseTokenVersion() {
 

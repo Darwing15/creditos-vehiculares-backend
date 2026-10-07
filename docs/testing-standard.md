@@ -198,6 +198,32 @@ Esto proporciona:
 * Mensajes de error más descriptivos.
 * Un único estándar para todo el proyecto.
 
+## 8.2 Organización de las verificaciones
+
+Cuando una prueba utilice Mockito, las verificaciones (`verify`) deberán ubicarse dentro de la sección Assert, inmediatamente después de las aserciones funcionales (`assertThat`).
+
+Orden recomendado:
+
+```java
+/* Arrange */
+
+...
+
+/* Act */
+
+...
+
+/* Assert */
+
+assertThat(...);
+
+verify(...);
+
+verifyNoMoreInteractions(...);
+```
+
+Las verificaciones forman parte de la validación del comportamiento esperado del componente bajo prueba y, por tanto, deben considerarse parte de la fase Assert del patrón AAA.
+
 ## 9. Qué NO probar
 No probar:
 * getters
@@ -388,6 +414,24 @@ porque generan duplicación y aumentan el costo de mantenimiento.
 
 Existe un único escenario válido por defecto y cada prueba adapta únicamente aquello que necesita.
 
+**Extensión para Value Objects**
+
+Los métodos auxiliares también podrán utilizarse para construir Value Objects o valores del dominio (por ejemplo, `BigDecimal`, `LocalDate`, `UUID`, etc.) cuando estos representen información significativa y sean reutilizados por varias pruebas.
+
+Ejemplos:
+
+```java
+private BigDecimal createVehiclePrice() {
+    return new BigDecimal("50000.00");
+}
+
+private LocalDate createStartDate() {
+    return LocalDate.of(2026, 7, 1);
+}
+```
+
+Esto evita la repetición de valores literales, mejora la legibilidad y mantiene el mismo criterio aplicado a entidades y DTOs: partir siempre de datos válidos por defecto y modificar únicamente aquello que cada prueba necesita.
+
 ## 18.2 Verificación de interacciones
 
 Además de validar el resultado esperado, las pruebas unitarias deberán verificar las interacciones con las dependencias externas utilizando Mockito.
@@ -486,5 +530,30 @@ Ejemplos:
 * Mappers
 
 El objetivo es validar el comportamiento real del componente y evitar pruebas que únicamente verifiquen el comportamiento de los mocks.
+
+## 19.1 Instanciación directa de la clase bajo prueba
+
+Cuando una clase encapsule una funcionalidad determinista y no dependa de componentes externos (como repositorios, servicios, clientes HTTP o infraestructura de Spring), las pruebas deberán instanciar directamente la implementación bajo prueba.
+
+En estos casos no deberá utilizarse:
+
+* @SpringBootTest
+* @Mock
+* @InjectMocks
+* Mockito
+
+Ejemplo:
+
+```java
+private final DefaultCreditCalculator calculator =
+        new DefaultCreditCalculator();
+```
+
+Este enfoque mantiene las pruebas:
+
+* rápidas;
+* aisladas;
+* fáciles de comprender;
+* centradas exclusivamente en el comportamiento del componente.
 
 Las pruebas son parte del código fuente del proyecto y deberán mantener el mismo nivel de calidad, organización y claridad que el código de producción.

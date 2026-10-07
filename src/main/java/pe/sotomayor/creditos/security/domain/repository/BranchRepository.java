@@ -1,5 +1,6 @@
 package pe.sotomayor.creditos.security.domain.repository;
 
+import java.util.List;
 import java.util.Optional;
 
 import pe.sotomayor.creditos.security.domain.model.entity.Branch;
@@ -40,5 +41,28 @@ public interface BranchRepository extends BaseRepository<Branch> {
      * {@code false} en caso contrario
      */
     boolean existsByCode(String code);
+
+    /**
+     * Busca una sucursal sin excluirla por su estado operativo.
+     *
+     * @param id identificador de la sucursal
+     * @return sucursal no eliminada, o vacío; su estado activo se valida en el servicio
+     */
+    Optional<Branch> findByIdAndDeletedFalse(Long id);
+
+    /**
+     * Recupera las sucursales administrables, incluidas las inactivas.
+     *
+     * @return sucursales no eliminadas, sin un orden garantizado
+     */
+    List<Branch> findAllByDeletedFalse();
+
+    /**
+     * Comprueba referencias al responsable antes de trasladarlo o desactivarlo.
+     *
+     * @param managerId identificador del usuario que podría continuar como responsable
+     * @return true si alguna sucursal conserva esa referencia, incluidos registros históricos
+     */
+    boolean existsByManagerId(Long managerId);
 
 }

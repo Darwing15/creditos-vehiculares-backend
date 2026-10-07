@@ -7,24 +7,37 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
+
+import org.springframework.security.access.AccessDeniedException;
 
 import pe.sotomayor.creditos.security.application.dto.role.request.UpdateRoleRequest;
 import pe.sotomayor.creditos.security.application.dto.role.response.RoleResponse;
+
 import pe.sotomayor.creditos.security.application.mapper.role.RoleMapper;
 import pe.sotomayor.creditos.security.domain.model.entity.Role;
+import pe.sotomayor.creditos.security.domain.model.enumeration.SecurityPermission;
 import pe.sotomayor.creditos.security.domain.repository.RoleRepository;
 
+import pe.sotomayor.creditos.security.infrastructure.security.service.SecurityWriteGate;
+import pe.sotomayor.creditos.security.infrastructure.security.service.SecurityWriteGate.WriteContext;
+
+import pe.sotomayor.creditos.shared.error.ErrorCode;
 import pe.sotomayor.creditos.shared.exception.ConflictException;
 import pe.sotomayor.creditos.shared.exception.ResourceNotFoundException;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
+
+import static pe.sotomayor.creditos.security.domain.model.enumeration.SecurityPermission.ROLES_WRITE;
 
 @ExtendWith(MockitoExtension.class)
 class UpdateRoleServiceTest {
@@ -35,165 +48,135 @@ class UpdateRoleServiceTest {
     @Mock
     private RoleMapper roleMapper;
 
+    @Mock
+    private SecurityWriteGate gate;
+
     @InjectMocks
-    private UpdateRoleService updateRoleService;
+    private UpdateRoleService service;
 
     @Test
-    void shouldUpdateRoleWhenNameDoesNotExist() {
-
+    void shouldUpdateRoleWhenDataIsValid() throws Exception {
         /* Arrange */
-
-        Long roleId = 1L;
-
-        UpdateRoleRequest request = updateRequest();
-
-        Role existingRole = createRole(roleId);
-
-        RoleResponse expectedResponse = createResponse(roleId);
-
-        when(roleRepository.findById(roleId)).thenReturn(Optional.of(existingRole));
-
-        when(roleRepository.existsByNameAndIdNot(
-                request.name(),
-                roleId))
-                .thenReturn(false);
-
-        when(roleRepository.save(existingRole)).thenReturn(existingRole);
-        when(roleMapper.toResponse(existingRole)).thenReturn(expectedResponse);
+        UpdateRoleRequest request = createRequest();
+        Role entity = createRole();
+        when(gate.begin(ROLES_WRITE)).thenReturn(createContext());
+        when(roleRepository.findByIdAndDeletedFalse(2L)).thenReturn(Optional.of(entity));
+        when(roleRepository.existsByNameAndIdNot(request.name(), 2L)).thenReturn(false);
+        RoleResponse expected = createResponse();
+        when(roleRepository.saveAndFlush(entity)).thenReturn(entity);
+        when(roleMapper.toResponse(entity)).thenReturn(expected);
 
         /* Act */
-
-        RoleResponse response = updateRoleService.update(roleId, request);
+        RoleResponse result = service.update(2L, request);
 
         /* Assert */
+        assertThat(result).isEqualTo(expected);
 
-        assertNotNull(response);
-
-        assertEquals(roleId, response.id());
-
-        assertEquals("Administrador", response.name());
-
-        assertEquals(
-                "Rol con acceso total al sistema actualizado",
-                response.description());
-
-        verify(roleRepository).findById(roleId);
-
-        verify(roleRepository)
-                .existsByNameAndIdNot(
-                        request.name(),
-                        roleId);
-
-        verify(roleMapper)
-                .updateEntity(
-                        request,
-                        existingRole);
-
-        verify(roleRepository).save(existingRole);
-        verify(roleMapper).toResponse(existingRole);
-
-        verifyNoMoreInteractions(roleRepository, roleMapper);
+        verify(gate).begin(ROLES_WRITE);
+        verify(roleRepository).findByIdAndDeletedFalse(2L);
+        verify(roleRepository).existsByNameAndIdNot(request.name(), 2L);
+        verify(roleMapper).updateEntity(request, entity);
+        verify(roleRepository).saveAndFlush(entity);
+        verify(gate).finish();
+        verify(roleMapper).toResponse(entity);
+        verifyNoMoreInteractions(roleRepository, roleMapper, gate);
     }
 
     @Test
-    void shouldThrowResourceNotFoundExceptionWhenRoleDoesNotExist() {
-
+    void shouldStopBeforeReadingDataWhenWriteGateDeniesAccess() throws Exception {
         /* Arrange */
+        UpdateRoleRequest request = createRequest();
+        when(gate.begin(ROLES_WRITE)).thenThrow(new AccessDeniedException("denied"));
 
-        Long roleId = 99L;
+        /* Act */
+        Throwable thrown = catchThrowable(() -> service.update(2L, request));
 
-        UpdateRoleRequest request = updateRequest();
-
-        when(roleRepository.findById(roleId))
-                .thenReturn(Optional.empty());
-
-        /* Act & Assert */
-
-        ResourceNotFoundException exception =
-                assertThrows(
-                        ResourceNotFoundException.class,
-                        () -> updateRoleService.update(
-                                roleId,
-                                request)
-                );
-
-        assertEquals(
-                "ROLE_NOT_FOUND",
-                exception.getErrorCode().name());
-
-        verify(roleRepository).findById(roleId);
-
-        verifyNoMoreInteractions(roleRepository, roleMapper);
+        /* Assert */
+        assertThat(thrown).isInstanceOf(AccessDeniedException.class);
+        verify(gate).begin(ROLES_WRITE);
+        verifyNoInteractions(roleRepository, roleMapper);
+        verifyNoMoreInteractions(roleRepository, roleMapper, gate);
     }
 
     @Test
-    void shouldThrowConflictExceptionWhenRoleNameAlreadyExists() {
-
+    void shouldThrowNotFoundWhenRoleDoesNotExist() throws Exception {
         /* Arrange */
+        UpdateRoleRequest request = createRequest();
+        when(gate.begin(ROLES_WRITE)).thenReturn(createContext());
+        when(roleRepository.findByIdAndDeletedFalse(2L)).thenReturn(Optional.empty());
 
-        Long roleId = 1L;
+        /* Act */
+        Throwable thrown = catchThrowable(() -> service.update(2L, request));
 
-        UpdateRoleRequest request = updateRequest();
-
-        Role existingRole = createRole(roleId);
-
-        when(roleRepository.findById(roleId))
-                .thenReturn(Optional.of(existingRole));
-
-        when(roleRepository.existsByNameAndIdNot(
-                request.name(),
-                roleId))
-                .thenReturn(true);
-
-        /* Act & Assert */
-
-        ConflictException exception =
-                assertThrows(
-                        ConflictException.class,
-                        () -> updateRoleService.update(
-                                roleId,
-                                request)
-                );
-
-        assertEquals(
-                "ROLE_ALREADY_EXISTS",
-                exception.getErrorCode().name());
-
-        verify(roleRepository).findById(roleId);
-
-        verify(roleRepository)
-                .existsByNameAndIdNot(
-                        request.name(),
-                        roleId);
-
-        verifyNoMoreInteractions(roleRepository, roleMapper);
+        /* Assert */
+        assertThat(thrown).isInstanceOf(ResourceNotFoundException.class).extracting("errorCode").isEqualTo(ErrorCode.ROLE_NOT_FOUND);
+        verify(gate).begin(ROLES_WRITE);
+        verify(roleRepository).findByIdAndDeletedFalse(2L);
+        verifyNoInteractions(roleMapper);
+        verifyNoMoreInteractions(roleRepository, roleMapper, gate);
     }
 
-    private UpdateRoleRequest updateRequest() {
-        return new UpdateRoleRequest(
-                "Administrador",
-                "Rol con acceso total al sistema actualizado"
-        );
+    @Test
+    void shouldRejectDuplicateWhenNameAlreadyExists() throws Exception {
+        /* Arrange */
+        UpdateRoleRequest request = createRequest();
+        Role entity = createRole();
+        when(gate.begin(ROLES_WRITE)).thenReturn(createContext());
+        when(roleRepository.findByIdAndDeletedFalse(2L)).thenReturn(Optional.of(entity));
+        when(roleRepository.existsByNameAndIdNot(request.name(), 2L)).thenReturn(true);
+
+        /* Act */
+        Throwable thrown = catchThrowable(() -> service.update(2L, request));
+
+        /* Assert */
+        assertThat(thrown).isInstanceOf(ConflictException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.ROLE_ALREADY_EXISTS);
+        verify(gate).begin(ROLES_WRITE);
+        verify(roleRepository).findByIdAndDeletedFalse(2L);
+        verify(roleRepository).existsByNameAndIdNot(request.name(), 2L);
+        verifyNoInteractions(roleMapper);
+        verifyNoMoreInteractions(roleRepository, roleMapper, gate);
     }
 
-    private Role createRole(Long id) {
+    @Test
+    void shouldRejectMutationWhenTargetHasSuperiorPermissions() throws Exception {
+        /* Arrange */
+        UpdateRoleRequest request = createRequest();
+        Role entity = createRole();
+        when(gate.begin(ROLES_WRITE)).thenReturn(new WriteContext(99L, Set.of("security:roles:write")));
+        when(roleRepository.findByIdAndDeletedFalse(2L)).thenReturn(Optional.of(entity));
 
-        Role role = new Role();
+        /* Act */
+        Throwable thrown = catchThrowable(() -> service.update(2L, request));
 
-        role.setId(id);
-        role.setName("Administrador");
-        role.setDescription(
-                "Rol con acceso total al sistema");
-
-        return role;
+        /* Assert */
+        assertThat(thrown).isInstanceOf(AccessDeniedException.class);
+        verify(gate).begin(ROLES_WRITE);
+        verify(roleRepository).findByIdAndDeletedFalse(2L);
+        verifyNoInteractions(roleMapper);
+        verifyNoMoreInteractions(roleRepository, roleMapper, gate);
     }
 
-    private RoleResponse createResponse(Long roleId) {
-        return new RoleResponse(
-                roleId,
-                "Administrador",
-                "Rol con acceso total al sistema actualizado"
-        );
+    private Role createRole() {
+        return Role.builder()
+                .id(2L)
+                .name("Operador")
+                .description("Consulta de usuarios")
+                .permissions(new HashSet<>(Set.of("security:users:read")))
+                .deleted(false)
+                .build();
+    }
+
+    private WriteContext createContext() {
+        return new WriteContext(99L, SecurityPermission.authorities());
+    }
+
+    private RoleResponse createResponse() {
+        return new RoleResponse(2L, "Operador", "Consulta de usuarios");
+    }
+
+    private UpdateRoleRequest createRequest() {
+        return new UpdateRoleRequest("Analista", "Consulta");
     }
 
 }

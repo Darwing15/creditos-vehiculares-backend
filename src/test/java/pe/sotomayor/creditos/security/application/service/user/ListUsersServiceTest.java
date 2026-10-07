@@ -10,15 +10,20 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import pe.sotomayor.creditos.security.application.dto.user.response.UserResponse;
 import pe.sotomayor.creditos.security.application.mapper.user.UserMapper;
 
+import pe.sotomayor.creditos.security.domain.model.entity.Branch;
+import pe.sotomayor.creditos.security.domain.model.entity.Role;
 import pe.sotomayor.creditos.security.domain.model.entity.User;
+
 import pe.sotomayor.creditos.security.domain.repository.UserRepository;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
@@ -32,151 +37,89 @@ class ListUsersServiceTest {
     private UserMapper userMapper;
 
     @InjectMocks
-    private ListUsersService listUsersService;
+    private ListUsersService service;
 
     @Test
-    void shouldReturnUsersWhenUsersExist() {
-
+    void shouldMapResultsWhenRecordsExist() throws Exception {
         /* Arrange */
-
-        User admin = createUser(
-                1L,
-                "Administrador"
-        );
-
-        User cajero = createUser(
-                2L,
-                "Cajero"
-        );
-
-        List<User> users = List.of(
-                admin,
-                cajero
-        );
-
-        UserResponse adminResponse =
-                createResponse(
-                        1L,
-                        "Administrador"
-                );
-
-        UserResponse cajeroResponse =
-                createResponse(
-                        2L,
-                        "Cajero"
-                );
-
-        when(userRepository.findAll())
-                .thenReturn(users);
-
-        when(userMapper.toResponse(admin))
-                .thenReturn(adminResponse);
-
-        when(userMapper.toResponse(cajero))
-                .thenReturn(cajeroResponse);
+        User entity = createUser();
+        UserResponse expected = createResponse();
+        when(userRepository.findAllByDeletedFalse()).thenReturn(List.of(entity));
+        when(userMapper.toResponse(entity)).thenReturn(expected);
 
         /* Act */
-
-        List<UserResponse> result = listUsersService.findAll();
+        List<UserResponse> result = service.findAll();
 
         /* Assert */
-
-        assertNotNull(result);
-
-        assertEquals(
-                2,
-                result.size()
-        );
-
-        assertEquals(
-                "Administrador",
-                result.get(0).fullName()
-        );
-
-        assertEquals(
-                "Cajero",
-                result.get(1).fullName()
-        );
-
-        verify(userRepository).findAll();
-        verify(userMapper).toResponse(admin);
-        verify(userMapper).toResponse(cajero);
-
-        verifyNoMoreInteractions(
-                userRepository,
-                userMapper
-        );
-
+        assertThat(result).containsExactly(expected);
+        verify(userRepository).findAllByDeletedFalse();
+        verify(userMapper).toResponse(entity);
+        verifyNoMoreInteractions(userRepository, userMapper);
     }
 
     @Test
-    void shouldReturnEmptyListWhenNoUsersExist() {
-
+    void shouldReturnEmptyListWhenNoRecordsExist() throws Exception {
         /* Arrange */
-
-        when(userRepository.findAll())
-                .thenReturn(List.of());
+        when(userRepository.findAllByDeletedFalse()).thenReturn(List.of());
 
         /* Act */
-
-        List<UserResponse> result = listUsersService.findAll();
+        List<UserResponse> result = service.findAll();
 
         /* Assert */
-
-        assertNotNull(result);
-
-        assertEquals(
-                0,
-                result.size()
-        );
-
-        verify(userRepository).findAll();
-
-        verifyNoMoreInteractions(
-                userRepository,
-                userMapper
-        );
-
+        assertThat(result).isEmpty();
+        verify(userRepository).findAllByDeletedFalse();
+        verifyNoInteractions(userMapper);
+        verifyNoMoreInteractions(userRepository, userMapper);
     }
 
-    private User createUser(
-            Long id,
-            String fullName) {
-
-        User user = new User();
-
-        user.setId(id);
-
-        user.setFullName(fullName);
-
-        user.setEmail(
-                fullName.toLowerCase()
-                        .replace(" ", ".")
-                        + "@test.com"
-        );
-
-        user.setActive(true);
-
-        return user;
+    private User createUser() {
+        return User.builder()
+                .id(1L)
+                .fullName("Ana Perez")
+                .email("ana@test.com")
+                .password("encoded-password")
+                .active(true)
+                .deleted(false)
+                .tokenVersion(1L)
+                .role(createRole())
+                .branch(createBranch())
+                .build();
     }
 
-    private UserResponse createResponse(
-            Long id,
-            String fullName) {
+    private Role createRole() {
+        return Role.builder()
+                .id(2L)
+                .name("Operador")
+                .description("Consulta de usuarios")
+                .permissions(new HashSet<>(Set.of("security:users:read")))
+                .deleted(false)
+                .build();
+    }
 
+    private Branch createBranch() {
+        return Branch.builder()
+                .id(3L)
+                .code("LIM")
+                .name("Lima")
+                .address("Av. Peru 123")
+                .email("lima@test.com")
+                .phone("999999999")
+                .active(true)
+                .deleted(false)
+                .build();
+    }
+
+    private UserResponse createResponse() {
         return new UserResponse(
-                id,
-                fullName,
-                fullName.toLowerCase()
-                        .replace(" ", ".")
-                        + "@test.com",
                 1L,
-                "Administrador",
-                1L,
-                "Sucursal Principal",
+                "Ana Perez",
+                "ana@test.com",
+                2L,
+                "Operador",
+                3L,
+                "Lima",
                 true
         );
-
     }
 
 }

@@ -1,128 +1,121 @@
 package pe.sotomayor.creditos.security.application.mapper.branch;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-
 import org.junit.jupiter.api.Test;
+
 import org.mapstruct.factory.Mappers;
 
 import pe.sotomayor.creditos.security.application.dto.branch.request.CreateBranchRequest;
 import pe.sotomayor.creditos.security.application.dto.branch.request.UpdateBranchRequest;
+
 import pe.sotomayor.creditos.security.application.dto.branch.response.BranchResponse;
+
 import pe.sotomayor.creditos.security.domain.model.entity.Branch;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 class BranchMapperTest {
 
-    private final BranchMapper branchMapper =
+    private final BranchMapper mapper =
             Mappers.getMapper(BranchMapper.class);
 
     @Test
-    void shouldMapCreateRequestToEntity() {
-
+    void shouldMapPublicFieldsWhenCreatingEntity() throws Exception {
         /* Arrange */
-
         CreateBranchRequest request = createRequest();
 
         /* Act */
-
-        Branch branch = branchMapper.toEntity(request);
+        Branch result = mapper.toEntity(request);
 
         /* Assert */
-
-        assertNotNull(branch);
-
-        assertEquals(request.code(), branch.getCode());
-        assertEquals(request.name(), branch.getName());
-        assertEquals(request.address(), branch.getAddress());
-        assertEquals(request.phone(), branch.getPhone());
-        assertEquals(request.email(), branch.getEmail());
+        assertThat(result).isNotNull();
+        assertThat(result.getId()).isNull();
+        assertThat(result.getCode()).isEqualTo(request.code());
+        assertThat(result.getName()).isEqualTo(request.name());
+        assertThat(result.getAddress()).isEqualTo(request.address());
+        assertThat(result.getPhone()).isEqualTo(request.phone());
+        assertThat(result.getEmail()).isEqualTo(request.email());
+        assertThat(result.getManagerId()).isNull();
     }
 
     @Test
-    void shouldUpdateEntity() {
-
+    void shouldPreserveProtectedFieldsWhenUpdatingEntity() throws Exception {
         /* Arrange */
-
-        Branch branch = createBranch();
-
-        UpdateBranchRequest request = updateRequest();
+        Branch entity = createBranch();
+        entity.setRowVersion(7L);
+        UpdateBranchRequest request = createUpdateRequest();
 
         /* Act */
-
-        branchMapper.updateEntity(request, branch);
+        mapper.updateEntity(request, entity);
 
         /* Assert */
-
-        assertEquals(request.name(), branch.getName());
-        assertEquals(request.address(), branch.getAddress());
-        assertEquals(request.phone(), branch.getPhone());
-        assertEquals(request.email(), branch.getEmail());
+        assertThat(entity.getId()).isEqualTo(3L);
+        assertThat(entity.getRowVersion()).isEqualTo(7L);
+        assertThat(entity.getName()).isEqualTo(request.name());
+        assertThat(entity.getAddress()).isEqualTo(request.address());
+        assertThat(entity.getPhone()).isEqualTo(request.phone());
+        assertThat(entity.getEmail()).isEqualTo(request.email());
+        assertThat(entity.getManagerId()).isEqualTo(request.managerId());
+        assertThat(entity.getCode()).isEqualTo("LIM");
+        assertThat(entity.getActive()).isTrue();
     }
 
     @Test
-    void shouldMapEntityToResponse() {
-
+    void shouldMapResponseWhenEntityHasRelations() throws Exception {
         /* Arrange */
-
-        Branch branch = createBranch();
+        Branch entity = createBranch();
 
         /* Act */
-
-        BranchResponse response = branchMapper.toResponse(branch);
+        BranchResponse result = mapper.toResponse(entity);
 
         /* Assert */
-
-        assertNotNull(response);
-
-        assertEquals(branch.getId(), response.id());
-        assertEquals(branch.getCode(), response.code());
-        assertEquals(branch.getName(), response.name());
-        assertEquals(branch.getAddress(), response.address());
-        assertEquals(branch.getPhone(), response.phone());
-        assertEquals(branch.getEmail(), response.email());
-        assertEquals(branch.getManagerId(), response.managerId());
-        assertEquals(branch.getActive(), response.active());
-    }
-
-    private CreateBranchRequest createRequest() {
-
-        return new CreateBranchRequest(
-                "TOC01",
-                "Sucursal Tocache",
-                "Av. Principal 123",
-                "987654321",
-                "tocache@creditos.com",
-                null
-        );
-
-    }
-
-    private UpdateBranchRequest updateRequest() {
-
-        return new UpdateBranchRequest(
-                "Sucursal Nueva",
-                "Av. Central 456",
-                "999888777",
-                "nueva@creditos.com",
-                null
-        );
-
+        assertThat(result).isEqualTo(createResponse());
     }
 
     private Branch createBranch() {
+        return Branch.builder()
+                .id(3L)
+                .code("LIM")
+                .name("Lima")
+                .address("Av. Peru 123")
+                .email("lima@test.com")
+                .phone("999999999")
+                .active(true)
+                .deleted(false)
+                .build();
+    }
 
-        Branch branch = new Branch();
+    private BranchResponse createResponse() {
+        return new BranchResponse(
+                3L,
+                "LIM",
+                "Lima",
+                "Av. Peru 123",
+                "999999999",
+                "lima@test.com",
+                null,
+                true
+        );
+    }
 
-        branch.setId(1L);
-        branch.setCode("TOC01");
-        branch.setName("Sucursal Tocache");
-        branch.setAddress("Av. Principal 123");
-        branch.setPhone("987654321");
-        branch.setEmail("tocache@creditos.com");
-        branch.setManagerId(null);
-        branch.setActive(true);
+    private CreateBranchRequest createRequest() {
+        return new CreateBranchRequest(
+                "LIM",
+                "Lima",
+                "Av. Peru 123",
+                "999999999",
+                "lima@test.com",
+                null
+        );
+    }
 
-        return branch;
+    private UpdateBranchRequest createUpdateRequest() {
+        return new UpdateBranchRequest(
+                "Lima Centro",
+                "Av. Peru 456",
+                "988888888",
+                "centro@test.com",
+                1L
+        );
     }
 
 }

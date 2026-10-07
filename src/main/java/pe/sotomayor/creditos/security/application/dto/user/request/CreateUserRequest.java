@@ -1,9 +1,14 @@
 package pe.sotomayor.creditos.security.application.dto.user.request;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+
+import java.nio.charset.StandardCharsets;
 
 /**
  * Solicitud para registrar un nuevo usuario en el sistema.
@@ -14,11 +19,10 @@ import jakarta.validation.constraints.Size;
  * </p>
  *
  * @param fullName nombre completo del usuario
- * @param email correo electrónico utilizado para autenticación
+ * @param email    correo electrónico utilizado para autenticación
  * @param password contraseña inicial del usuario
- * @param roleId identificador del rol asignado
+ * @param roleId   identificador del rol asignado
  * @param branchId identificador de la sucursal asignada
- *
  * @author DarwinG
  */
 public record CreateUserRequest(
@@ -40,9 +44,9 @@ public record CreateUserRequest(
 
         @NotBlank(message = "La contraseña es obligatoria.")
         @Size(
-                min = 8,
-                max = 100,
-                message = "La contraseña debe tener entre 8 y 100 caracteres."
+                min = 15,
+                max = 72,
+                message = "La contraseña debe tener entre 15 y 72 caracteres."
         )
         String password,
 
@@ -53,4 +57,19 @@ public record CreateUserRequest(
         Long branchId
 
 ) {
+    /**
+     * Complementa la longitud en caracteres del alta con el límite en bytes de BCrypt.
+     *
+     * <p>El nombre is... permite que Bean Validation lo evalúe como propiedad.
+     * JsonIgnore impide incorporarlo al contrato JSON. NotBlank controla el valor nulo.</p>
+     *
+     * @return true si el valor es nulo o cabe en 72 bytes; NotBlank trata la ausencia
+     */
+    @JsonIgnore
+    @AssertTrue(
+            message = "La contraseña no puede superar 72 bytes en UTF-8.")
+    public boolean isPasswordWithinBcryptLimit() {
+        return password == null
+                || password.getBytes(StandardCharsets.UTF_8).length <= 72;
+    }
 }

@@ -1,12 +1,14 @@
 package pe.sotomayor.creditos.security.application.mapper.role;
 
 import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 import org.mapstruct.MappingTarget;
 import org.mapstruct.ReportingPolicy;
 
 import pe.sotomayor.creditos.security.application.dto.role.request.CreateRoleRequest;
 import pe.sotomayor.creditos.security.application.dto.role.request.UpdateRoleRequest;
 import pe.sotomayor.creditos.security.application.dto.role.response.RoleResponse;
+
 import pe.sotomayor.creditos.security.domain.model.entity.Role;
 
 /**
@@ -26,24 +28,23 @@ import pe.sotomayor.creditos.security.domain.model.entity.Role;
 public interface RoleMapper {
 
     /**
-     * Convierte una solicitud de creación en una entidad {@link Role}.
+     * Construye un rol con sus metadatos sin asignarle permisos ni versión JPA.
      *
-     * @param request información para registrar un nuevo rol
-     * @return entidad Role
+     * @param request nombre y descripción solicitados
+     * @return entidad cuyos privilegios se administran por un caso de uso separado
      */
+    @Mapping(target = "permissions", ignore = true)
+    @Mapping(target = "rowVersion", ignore = true)
     Role toEntity(CreateRoleRequest request);
 
     /**
-     * Actualiza los datos editables de una entidad {@link Role}.
+     * Copia los metadatos editables y conserva los permisos y la versión actuales.
      *
-     * <p>
-     * La identidad de la entidad no se modifica porque pertenece al agregado
-     * existente.
-     * </p>
-     *
-     * @param request información actualizada del rol
-     * @param role    entidad existente a modificar
+     * @param request nombre y descripción que deben aplicarse
+     * @param role    entidad existente que recibe los cambios
      */
+    @Mapping(target = "permissions", ignore = true)
+    @Mapping(target = "rowVersion", ignore = true)
     void updateEntity(UpdateRoleRequest request, @MappingTarget Role role);
 
     /**

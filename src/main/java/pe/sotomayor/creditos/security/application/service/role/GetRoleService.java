@@ -2,6 +2,7 @@ package pe.sotomayor.creditos.security.application.service.role;
 
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,9 +43,10 @@ public class GetRoleService implements GetRoleByIdUseCase {
      * @return información del rol encontrado
      */
     @Override
+    @PreAuthorize("hasAuthority('security:roles:read')")
     public RoleResponse getById(Long id) {
 
-        Role role = roleRepository.findById(id)
+        Role role = roleRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() ->
                         new ResourceNotFoundException(
                                 ErrorCode.ROLE_NOT_FOUND,

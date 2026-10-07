@@ -35,7 +35,6 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @SuperBuilder
 @MappedSuperclass
-@SQLRestriction("is_deleted = false")
 public abstract class SoftDeleteEntity extends BaseEntity {
 
     /**

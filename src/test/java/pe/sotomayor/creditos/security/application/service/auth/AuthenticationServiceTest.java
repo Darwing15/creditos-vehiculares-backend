@@ -3,250 +3,160 @@ package pe.sotomayor.creditos.security.application.service.auth;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import org.springframework.security.authentication.AuthenticationManager;
-
+import org.springframework.security.authentication.AuthenticationServiceException;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+
 import pe.sotomayor.creditos.security.application.dto.auth.request.LoginRequest;
 import pe.sotomayor.creditos.security.application.dto.auth.response.LoginResponse;
 
-import pe.sotomayor.creditos.security.domain.model.entity.Branch;
-import pe.sotomayor.creditos.security.domain.model.entity.Role;
-import pe.sotomayor.creditos.security.domain.model.entity.User;
-
-import pe.sotomayor.creditos.security.domain.repository.UserRepository;
-
 import pe.sotomayor.creditos.security.infrastructure.security.jwt.JwtService;
+import pe.sotomayor.creditos.security.infrastructure.security.model.SecurityPrincipal;
 
-import pe.sotomayor.creditos.shared.error.ErrorCode;
-import pe.sotomayor.creditos.shared.exception.ResourceNotFoundException;
-
-import java.util.Optional;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
-
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class AuthenticationServiceTest {
 
     @Mock
-    private AuthenticationManager authenticationManager;
+    private AuthenticationManager manager;
 
     @Mock
-    private UserRepository userRepository;
-
-    @Mock
-    private JwtService jwtService;
+    private JwtService jwt;
 
     @InjectMocks
-    private AuthenticationService authenticationService;
+    private AuthenticationService service;
 
     @Test
-    void shouldAuthenticateUserWhenCredentialsAreValid() {
-
+    void shouldReturnTokenAndIdentityWhenCredentialsAreValid() throws Exception {
         /* Arrange */
-
         LoginRequest request = createRequest();
-
-        Authentication authentication = createAuthentication();
-
-        User user = createUser();
-
-        when(authenticationManager.authenticate(any(
-                UsernamePasswordAuthenticationToken.class)))
-                .thenReturn(authentication);
-
-        when(userRepository.findUserWithRoleAndBranchByEmail(
-                request.email()))
-                .thenReturn(Optional.of(user));
-
-        when(jwtService.generateToken(user))
-                .thenReturn("jwt-token");
+        SecurityPrincipal principal = createPrincipal();
+        Authentication authentication = createAuthentication(principal);
+        when(manager.authenticate(any(Authentication.class))).thenReturn(authentication);
+        when(jwt.generateToken(principal)).thenReturn("signed-token");
+        when(jwt.expiresInSeconds()).thenReturn(600L);
 
         /* Act */
-
-        LoginResponse response =
-                authenticationService.authenticate(request);
+        LoginResponse result = service.authenticate(request);
 
         /* Assert */
-
-        assertThat(response).isNotNull();
-
-        assertThat(response.token())
-                .isEqualTo("jwt-token");
-
-        assertThat(response.userId())
-                .isEqualTo(user.getId());
-
-        assertThat(response.fullName())
-                .isEqualTo(user.getFullName());
-
-        assertThat(response.email())
-                .isEqualTo(user.getEmail());
-
-        assertThat(response.roleId())
-                .isEqualTo(user.getRole().getId());
-
-        assertThat(response.roleName())
-                .isEqualTo(user.getRole().getName());
-
-        assertThat(response.branchId())
-                .isEqualTo(user.getBranch().getId());
-
-        assertThat(response.branchName())
-                .isEqualTo(user.getBranch().getName());
-
-        verify(authenticationManager)
-                .authenticate(any(
-                        UsernamePasswordAuthenticationToken.class));
-
-        verify(userRepository)
-                .findUserWithRoleAndBranchByEmail(request.email());
-
-        verify(jwtService)
-                .generateToken(user);
-
-        verifyNoMoreInteractions(
-                authenticationManager,
-                userRepository,
-                jwtService);
+        assertThat(result).isEqualTo(new LoginResponse(
+                "signed-token",
+                1L,
+                "Ana Perez",
+                "ana@test.com",
+                2L,
+                "Operador",
+                3L,
+                "Lima",
+                "Bearer",
+                600L)
+        );
+        ArgumentCaptor<Authentication> submitted = ArgumentCaptor.forClass(Authentication.class);
+        verify(manager).authenticate(submitted.capture());
+        assertThat(submitted.getValue().getName()).isEqualTo("ana@test.com");
+        assertThat(submitted.getValue().getCredentials()).isEqualTo(request.password());
+        assertThat(submitted.getValue().isAuthenticated()).isFalse();
+        verify(jwt).generateToken(principal);
+        verify(jwt).expiresInSeconds();
+        verifyNoMoreInteractions(manager, jwt);
     }
 
     @Test
-    void shouldThrowResourceNotFoundExceptionWhenAuthenticatedUserDoesNotExist() {
-
+    void shouldPropagateFailureWhenCredentialsAreInvalid() throws Exception {
         /* Arrange */
-
         LoginRequest request = createRequest();
-
-        Authentication authentication = createAuthentication();
-
-        when(authenticationManager.authenticate(any(
-                UsernamePasswordAuthenticationToken.class)))
-                .thenReturn(authentication);
-
-        when(userRepository.findUserWithRoleAndBranchByEmail(
-                request.email()))
-                .thenReturn(Optional.empty());
+        BadCredentialsException failure = new BadCredentialsException("failure");
+        when(manager.authenticate(any(Authentication.class))).thenThrow(failure);
 
         /* Act */
-
-        Throwable exception = catchThrowable(() ->
-                authenticationService.authenticate(request));
+        Throwable thrown = catchThrowable(() -> service.authenticate(request));
 
         /* Assert */
-
-        assertThat(exception)
-                .isInstanceOf(ResourceNotFoundException.class)
-                .extracting("errorCode")
-                .isEqualTo(ErrorCode.USER_NOT_FOUND);
-
-        verify(authenticationManager)
-                .authenticate(any(
-                        UsernamePasswordAuthenticationToken.class));
-
-        verify(userRepository)
-                .findUserWithRoleAndBranchByEmail(request.email());
-
-        verifyNoInteractions(jwtService);
-
-        verifyNoMoreInteractions(
-                authenticationManager,
-                userRepository);
+        assertThat(thrown).isSameAs(failure);
+        verify(manager).authenticate(any(Authentication.class));
+        verifyNoInteractions(jwt);
+        verifyNoMoreInteractions(manager, jwt);
     }
 
     @Test
-    void shouldGenerateJwtForAuthenticatedUser() {
-
+    void shouldPropagateFailureWhenAccountIsDisabled() throws Exception {
         /* Arrange */
-
         LoginRequest request = createRequest();
-
-        Authentication authentication = createAuthentication();
-
-        User user = createUser();
-
-        when(authenticationManager.authenticate(any(
-                UsernamePasswordAuthenticationToken.class)))
-                .thenReturn(authentication);
-
-        when(userRepository.findUserWithRoleAndBranchByEmail(
-                request.email()))
-                .thenReturn(Optional.of(user));
-
-        when(jwtService.generateToken(user))
-                .thenReturn("jwt-token");
+        DisabledException failure = new DisabledException("failure");
+        when(manager.authenticate(any(Authentication.class))).thenThrow(failure);
 
         /* Act */
-
-        authenticationService.authenticate(request);
+        Throwable thrown = catchThrowable(() -> service.authenticate(request));
 
         /* Assert */
-
-        verify(jwtService)
-                .generateToken(user);
+        assertThat(thrown).isSameAs(failure);
+        verify(manager).authenticate(any(Authentication.class));
+        verifyNoInteractions(jwt);
+        verifyNoMoreInteractions(manager, jwt);
     }
 
-    private Authentication createAuthentication() {
+    @Test
+    void shouldPropagateFailureWhenProviderIsUnavailable() throws Exception {
+        /* Arrange */
+        LoginRequest request = createRequest();
+        AuthenticationServiceException failure = new AuthenticationServiceException("failure");
+        when(manager.authenticate(any(Authentication.class))).thenThrow(failure);
 
-        return new UsernamePasswordAuthenticationToken(
-                "darwin@creditos.com",
-                null
+        /* Act */
+        Throwable thrown = catchThrowable(() -> service.authenticate(request));
+
+        /* Assert */
+        assertThat(thrown).isSameAs(failure);
+        verify(manager).authenticate(any(Authentication.class));
+        verifyNoInteractions(jwt);
+        verifyNoMoreInteractions(manager, jwt);
+    }
+
+    private SecurityPrincipal createPrincipal() {
+        return new SecurityPrincipal(
+                1L,
+                1L,
+                "Ana Perez",
+                "ana@test.com",
+                "encoded-password",
+                2L,
+                "Operador",
+                3L,
+                "Lima",
+                true,
+                List.of(new SimpleGrantedAuthority("security:users:read"))
         );
     }
 
     private LoginRequest createRequest() {
-
         return new LoginRequest(
-                "darwin@creditos.com",
-                "Password123"
+                "  ANA@test.com  ",
+                "  a valid password  "
         );
     }
 
-    private User createUser() {
-
-        User user = new User();
-
-        user.setId(1L);
-        user.setFullName("Darwin G.");
-        user.setEmail("darwin@creditos.com");
-        user.setPassword("$2a$10$passwordHash");
-        user.setRole(createRole());
-        user.setBranch(createBranch());
-        user.setActive(true);
-        user.setTokenVersion(1L);
-
-        return user;
-    }
-
-    private Role createRole() {
-
-        Role role = new Role();
-
-        role.setId(1L);
-        role.setName("Administrador");
-
-        return role;
-    }
-
-    private Branch createBranch() {
-
-        Branch branch = new Branch();
-
-        branch.setId(1L);
-        branch.setName("Sede Tocache");
-
-        return branch;
+    private Authentication createAuthentication(SecurityPrincipal principal) {
+        return new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
     }
 
 }

@@ -3,6 +3,7 @@ package pe.sotomayor.creditos.security.domain.model.entity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -100,11 +101,19 @@ public class Branch extends ActivatableEntity {
 
     /**
      * Identificador del usuario responsable de la sucursal.
-     *
+     * <p>
      * La relación con la entidad User será incorporada cuando
      * la clave foránea sea creada mediante una migración Flyway.
      */
     @Column(name = "manager_id")
     private Long managerId;
+
+    /**
+     * Versión de concurrencia administrada por Hibernate; una escritura basada en
+     * una versión anterior se rechaza para evitar la pérdida de cambios.
+     */
+    @Version
+    @Column(name = "row_version", nullable = false)
+    private Long rowVersion;
 
 }

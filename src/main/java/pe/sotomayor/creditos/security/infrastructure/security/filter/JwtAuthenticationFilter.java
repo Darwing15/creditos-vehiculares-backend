@@ -1,5 +1,7 @@
 package pe.sotomayor.creditos.security.infrastructure.security.filter;
 
+import io.jsonwebtoken.JwtException;
+
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -9,36 +11,33 @@ import lombok.RequiredArgsConstructor;
 
 import lombok.extern.slf4j.Slf4j;
 
+import org.springframework.dao.DataAccessException;
+
+import org.springframework.http.HttpHeaders;
+
+import org.springframework.security.authentication.AccountStatusUserDetailsChecker;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
-
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 
 import org.springframework.web.filter.OncePerRequestFilter;
 
-import pe.sotomayor.creditos.security.domain.model.entity.User;
-
+import pe.sotomayor.creditos.security.infrastructure.security.config.SecurityErrorHandler;
 import pe.sotomayor.creditos.security.infrastructure.security.jwt.JwtService;
 import pe.sotomayor.creditos.security.infrastructure.security.service.CustomUserDetailsService;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Objects;
 
 /**
- * Filtro encargado de autenticar las solicitudes mediante JWT.
+ * Autentica una peticion Bearer mediante firma JWT y estado vigente de la cuenta.
  *
- * <p>
- * Intercepta cada petición HTTP para verificar la existencia de un
- * token JWT válido en el encabezado Authorization. Cuando el token
- * es válido y corresponde a la versión vigente del usuario, registra
- * la autenticación dentro del contexto de Spring Security.
- * </p>
- *
- * <p>
- * Este filtro se ejecuta una única vez por solicitud gracias a la
- * herencia de {@link OncePerRequestFilter}.
- * </p>
+ * <p>Reemplaza la aceptacion basada únicamente en tokenVersion: comprueba tambien
+ * los indicadores de UserDetails antes de construir una autenticacion confiable.
+ * El resto de la cadena queda fuera del bloque que clasifica errores JWT.</p>
  *
  * @author DarwinG
  */
@@ -46,142 +45,108 @@ import java.io.IOException;
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
+    /**
+     * Verifica criptografía y claims; no decide disponibilidad de la cuenta.
+     */
     private final JwtService jwtService;
 
-    private final CustomUserDetailsService userDetailsService;
+    /**
+     * Carga desde BD el principal identificado por sub.
+     */
+    private final CustomUserDetailsService users;
 
     /**
-     * Procesa la autenticación basada en JWT para cada solicitud.
+     * Escribe las respuestas de rechazo antes de llegar a los controladores.
+     */
+    private final SecurityErrorHandler errors;
+
+    /**
+     * Valida los indicadores de UserDetails, incluido enabled, antes de autenticar.
+     */
+    private final AccountStatusUserDetailsChecker checker =
+            new AccountStatusUserDetailsChecker();
+
+    /**
+     * Omite JWT en login y solicitudes OPTIONS.
      *
-     * @param request     petición HTTP
-     * @param response    respuesta HTTP
-     * @param filterChain cadena de filtros
-     * @throws ServletException si ocurre un error del servlet
-     * @throws IOException      si ocurre un error de entrada o salida
+     * <p>Login debe poder procesar credenciales aunque el cliente tenga un JWT vencido.
+     * CORS se configura por separado; omitir el filtro no concede por sí solo permisos.</p>
+     *
+     * @param request solicitud recibida
+     * @return true para los caminos que no deben procesar Bearer en este filtro
+     */
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        return ("POST".equals(request.getMethod())
+                && "/api/auth/login".equals(request.getServletPath()))
+                || "OPTIONS".equals(request.getMethod());
+    }
+
+    /**
+     * Valida una única credencial, verifica la cuenta y registra el contexto de seguridad.
+     *
+     * <p>Sin Authorization deja decidir a la cadena. Ante un JWT inválido responde 401;
+     * ante DataAccessException responde 503. No consume errores de negocio posteriores.</p>
+     *
+     * @param request  solicitud con la cabecera Authorization opcional
+     * @param response respuesta HTTP para rechazos del filtro
+     * @param chain    continuación del procesamiento autorizado o anonimo
+     * @throws ServletException si la cadena posterior produce un error de servlet
+     * @throws IOException      si falla la lectura/escritura o la cadena posterior
      */
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
-                                    FilterChain filterChain)
+                                    FilterChain chain)
             throws ServletException, IOException {
-
-        String jwt = extractJwt(request);
-
-        if (jwt != null) {
-            authenticateRequest(jwt, request);
+        /* Conservar todas las cabeceras para rechazar credenciales duplicadas. */
+        var headers = Collections.list(request.getHeaders(HttpHeaders.AUTHORIZATION));
+        if (headers.isEmpty()) {
+            chain.doFilter(request, response);
+            return;
         }
-
-        filterChain.doFilter(request, response);
-    }
-
-    /**
-     * Extrae el token JWT del encabezado Authorization.
-     *
-     * @param request petición HTTP
-     * @return JWT o {@code null} cuando no existe
-     */
-    private String extractJwt(HttpServletRequest request) {
-
-        String authorization =
-                request.getHeader("Authorization");
-
-        if (authorization == null
-                || !authorization.startsWith("Bearer ")) {
-
-            return null;
-        }
-
-        return authorization.substring(7);
-    }
-
-    /**
-     * Autentica la solicitud utilizando el token JWT recibido.
-     *
-     * <p>
-     * Si ocurre cualquier error durante el proceso de autenticación,
-     * el contexto de seguridad es limpiado y la solicitud continúa
-     * sin autenticación.
-     * </p>
-     *
-     * @param jwt     token JWT
-     * @param request petición HTTP
-     */
-    private void authenticateRequest(
-            String jwt,
-            HttpServletRequest request) {
-
         try {
-
-            String email = jwtService.extractUsername(jwt);
-
-            if (email == null
-                    || hasAuthentication()
-                    || !jwtService.isTokenValid(jwt)) {
-                return;
+            /* Límite defensivo del texto antes del parseo criptográfico. */
+            String header = headers.getFirst();
+            if (headers.size() != 1 || header.length() > 8192
+                    || !header.regionMatches(true, 0, "Bearer ", 0, 7)) {
+                throw new BadCredentialsException("Credencial inválida.");
             }
-
-            Long tokenVersion =
-                    jwtService.extractTokenVersion(jwt);
-
-            User user =
-                    userDetailsService.loadDomainUser(email);
-
-            if (!tokenVersion.equals(user.getTokenVersion())) {
-
-                return;
+            /* Credencial compacta, sin el esquema Bearer ni espacios adicionales. */
+            String token = header.substring(7);
+            if (token.isBlank() || token.chars().anyMatch(Character::isWhitespace)) {
+                throw new BadCredentialsException("Credencial inválida.");
             }
-
-            UserDetails userDetails =
-                    userDetailsService.loadUserByUsername(email);
-
-            SecurityContextHolder.getContext()
-                    .setAuthentication(
-                            createAuthentication(
-                                    userDetails,
-                                    request));
-
-        } catch (Exception ex) {
-
-            log.error("Error authenticating JWT.", ex);
-
+            /* claims es la proyección verificada; principal incorpora el estado de BD. */
+            var claims = jwtService.parseAccessToken(token);
+            var principal = users.loadUserById(claims.userId());
+            checker.check(principal);
+            if (!Objects.equals(claims.tokenVersion(), principal.getTokenVersion())) {
+                throw new BadCredentialsException("Sesión revocada.");
+            }
+            principal.eraseCredentials();
+            /* Se marca autenticada únicamente después de comprobar estado y versión. */
+            var authentication = UsernamePasswordAuthenticationToken.authenticated(
+                    principal, null, principal.getAuthorities());
+            authentication.setDetails(
+                    new WebAuthenticationDetailsSource().buildDetails(request));
+            /* Aislar la autenticación en un contexto nuevo para esta solicitud. */
+            var context = SecurityContextHolder.createEmptyContext();
+            context.setAuthentication(authentication);
+            SecurityContextHolder.setContext(context);
+        } catch (JwtException | AuthenticationException | IllegalArgumentException ex) {
             SecurityContextHolder.clearContext();
+            errors.commence(request, response,
+                    new BadCredentialsException("Credencial inválida."));
+            return;
+        } catch (DataAccessException ex) {
+            SecurityContextHolder.clearContext();
+            log.error("No se pudo consultar el estado de autenticación.", ex);
+            errors.unavailable(request, response);
+            return;
         }
-    }
-
-    /**
-     * Indica si la solicitud ya posee una autenticación registrada.
-     *
-     * @return {@code true} cuando existe una autenticación previa
-     */
-    private boolean hasAuthentication() {
-
-        return SecurityContextHolder
-                .getContext()
-                .getAuthentication() != null;
-    }
-
-    /**
-     * Construye la autenticación utilizada por Spring Security.
-     *
-     * @param userDetails información del usuario autenticado
-     * @param request     petición HTTP
-     * @return autenticación completamente inicializada
-     */
-    private UsernamePasswordAuthenticationToken createAuthentication(
-            UserDetails userDetails,
-            HttpServletRequest request) {
-
-        UsernamePasswordAuthenticationToken authentication =
-                new UsernamePasswordAuthenticationToken(
-                        userDetails,
-                        null,
-                        userDetails.getAuthorities());
-
-        authentication.setDetails(
-                new WebAuthenticationDetailsSource()
-                        .buildDetails(request));
-
-        return authentication;
+        /* Fuera del try: errores de negocio no son errores JWT. */
+        chain.doFilter(request, response);
     }
 
 }

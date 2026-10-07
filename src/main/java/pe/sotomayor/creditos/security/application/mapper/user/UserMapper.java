@@ -39,26 +39,11 @@ public interface UserMapper {
      * @param request información para registrar un usuario
      * @return entidad User
      */
-    @Mapping(
-            target = "id",
-            ignore = true
-    )
-    @Mapping(
-            target = "role",
-            ignore = true
-    )
-    @Mapping(
-            target = "branch",
-            ignore = true
-    )
-    @Mapping(
-            target = "password",
-            ignore = true
-    )
-    @Mapping(
-            target = "active",
-            ignore = true
-    )
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "role", ignore = true)
+    @Mapping(target = "branch", ignore = true)
+    @Mapping(target = "password", ignore = true)
+    @Mapping(target = "active", ignore = true)
     User toEntity(CreateUserRequest request);
 
     /**

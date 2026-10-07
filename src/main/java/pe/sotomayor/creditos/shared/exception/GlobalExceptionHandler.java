@@ -6,17 +6,23 @@ import jakarta.validation.ConstraintViolationException;
 
 import lombok.extern.slf4j.Slf4j;
 
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 
-import org.springframework.security.authentication.BadCredentialsException;
-
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.AuthenticationServiceException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -119,6 +125,30 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Maneja solicitudes que omiten un parámetro HTTP obligatorio.
+     *
+     * @param exception excepción producida por Spring MVC
+     * @param request   petición HTTP
+     * @return respuesta estandarizada con código HTTP 400
+     */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ApiError> handleMissingServletRequestParameter(
+            MissingServletRequestParameterException exception,
+            HttpServletRequest request) {
+
+        String message =
+                "El parámetro requerido '%s' no está presente."
+                        .formatted(exception.getParameterName());
+
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
+                ErrorCode.VALIDATION_ERROR,
+                message,
+                request
+        );
+    }
+
+    /**
      * Maneja solicitudes con JSON inválido o mal formado.
      *
      * @param exception excepción producida por Spring
@@ -139,35 +169,106 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * Maneja credenciales de autenticación inválidas.
+     * Maneja parámetros HTTP cuyo valor no puede convertirse
+     * al tipo requerido por el endpoint.
      *
-     * <p>
-     * Este método captura la excepción lanzada por Spring Security cuando
-     * el correo electrónico o la contraseña proporcionados no corresponden
-     * a un usuario válido del sistema.
-     * </p>
-     *
-     * <p>
-     * La respuesta mantiene el contrato estándar de errores de la aplicación,
-     * evitando exponer información sensible sobre el proceso interno de
-     * autenticación.
-     * </p>
-     *
-     * @param exception excepción producida por Spring Security
-     * @param request   solicitud HTTP
-     * @return respuesta estandarizada con código HTTP 401
+     * @param exception excepción producida por Spring MVC
+     * @param request   petición HTTP
+     * @return respuesta estandarizada con código HTTP 400
      */
-    @ExceptionHandler(BadCredentialsException.class)
-    public ResponseEntity<ApiError> handleBadCredentials(
-            BadCredentialsException exception,
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiError> handleMethodArgumentTypeMismatch(
+            MethodArgumentTypeMismatchException exception,
             HttpServletRequest request) {
 
+        String message =
+                "El parámetro '%s' contiene un valor inválido."
+                        .formatted(exception.getName());
+
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
+                ErrorCode.VALIDATION_ERROR,
+                message,
+                request
+        );
+    }
+
+    /**
+     * Clasifica fallos de credenciales/estado como 401 y del proveedor como 503.
+     *
+     * <p>Reemplaza el handler limitado a BadCredentialsException para no convertir
+     * cuentas deshabilitadas en un falso error 500. No expone la causa interna.</p>
+     *
+     * @param exception causa recibida por el advice
+     * @param request   solicitud que aporta la ruta al error
+     * @return respuesta ApiError con el estado correspondiente a esta categoría
+     */
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<ApiError> handleAuthentication(
+            AuthenticationException exception,
+            HttpServletRequest request) {
+        if (exception instanceof
+                AuthenticationServiceException) {
+            log.error("Fallo del servicio de autenticación.", exception);
+            return buildResponse(HttpStatus.SERVICE_UNAVAILABLE, ErrorCode.INTERNAL_ERROR,
+                    "El servicio no está disponible temporalmente.", request);
+        }
         return buildResponse(
                 HttpStatus.UNAUTHORIZED,
                 ErrorCode.INVALID_CREDENTIALS,
                 "Invalid credentials.",
                 request
         );
+    }
+
+    /**
+     * Traduce a 403 las denegaciones de autorización que llegan a Spring MVC.
+     *
+     * @param exception causa recibida por el advice
+     * @param request   solicitud que aporta la ruta al error
+     * @return respuesta ApiError con el estado correspondiente a esta categoría
+     */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiError> handleForbidden(
+            AccessDeniedException exception,
+            HttpServletRequest request) {
+        return buildResponse(HttpStatus.FORBIDDEN, ErrorCode.FORBIDDEN,
+                "No tiene permiso para realizar esta operación.", request);
+    }
+
+    /**
+     * Informa un conflicto 409 cuando la escritura usa una versión JPA obsoleta.
+     *
+     * <p>No reintenta automáticamente operaciones sensibles con datos anteriores.</p>
+     *
+     * @param exception causa recibida por el advice
+     * @param request   solicitud que aporta la ruta al error
+     * @return respuesta ApiError con el estado correspondiente a esta categoría
+     */
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ResponseEntity<ApiError> handleConcurrentUpdate(
+            OptimisticLockingFailureException exception,
+            HttpServletRequest request) {
+        return buildResponse(HttpStatus.CONFLICT, ErrorCode.CONCURRENT_MODIFICATION,
+                "El registro cambió. Recargue antes de volver a guardar.", request);
+    }
+
+    /**
+     * Devuelve el conflicto de integridad mediante un contrato seguro sin SQL.
+     *
+     * <p>Es una traducción genérica inicial; no identifica toda infracción como
+     * duplicado. Las restricciones conocidas pueden recibir códigos más específicos.</p>
+     *
+     * @param exception causa recibida por el advice
+     * @param request   solicitud que aporta la ruta al error
+     * @return respuesta ApiError con el estado correspondiente a esta categoría
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiError> handleIntegrity(
+            DataIntegrityViolationException exception,
+            HttpServletRequest request) {
+        return buildResponse(HttpStatus.CONFLICT, ErrorCode.DATA_INTEGRITY_CONFLICT,
+                "La operación entra en conflicto con los datos existentes.", request);
     }
 
     /**
@@ -179,26 +280,21 @@ public class GlobalExceptionHandler {
      * para Swagger UI) y responde con un código HTTP 404.
      * </p>
      *
-     * @param ex      excepción producida por Spring MVC
-     * @param request solicitud HTTP
+     * @param exception excepción producida por Spring MVC
+     * @param request   solicitud HTTP
      * @return respuesta de recurso no encontrado
      */
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ApiError> handleNoResourceFound(
-            NoResourceFoundException ex,
+            NoResourceFoundException exception,
             HttpServletRequest request) {
 
-        ApiError response = ApiError.builder()
-                .status(HttpStatus.NOT_FOUND.value())
-                .error(HttpStatus.NOT_FOUND.getReasonPhrase())
-                .errorCode(ErrorCode.RESOURCE_NOT_FOUND.name())
-                .message("El recurso solicitado no existe.")
-                .path(request.getRequestURI())
-                .timestamp(LocalDateTime.now())
-                .build();
-
-        return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(response);
+        return buildResponse(
+                HttpStatus.NOT_FOUND,
+                ErrorCode.RESOURCE_NOT_FOUND,
+                "El recurso solicitado no existe.",
+                request
+        );
     }
 
     /**

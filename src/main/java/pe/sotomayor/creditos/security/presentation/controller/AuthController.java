@@ -26,6 +26,7 @@ import pe.sotomayor.creditos.security.application.dto.auth.response.LoginRespons
 import pe.sotomayor.creditos.security.application.usecase.auth.AuthenticateUserUseCase;
 import pe.sotomayor.creditos.security.application.usecase.auth.ChangePasswordUseCase;
 import pe.sotomayor.creditos.security.application.usecase.auth.GetAuthenticatedUserUseCase;
+import pe.sotomayor.creditos.security.application.usecase.auth.LogoutAllUseCase;
 
 /**
  * Expone los endpoints públicos de autenticación del sistema.
@@ -54,6 +55,8 @@ public class AuthController {
     private final GetAuthenticatedUserUseCase getAuthenticatedUserUseCase;
 
     private final ChangePasswordUseCase changePasswordUseCase;
+
+    private final LogoutAllUseCase logoutAllUseCase;
 
     /**
      * Autentica un usuario y genera un token JWT.
@@ -137,6 +140,18 @@ public class AuthController {
             ChangePasswordRequest request) {
 
         changePasswordUseCase.changePassword(request);
+    }
+
+    /**
+     * Expone el cierre global de sesiones de la cuenta autenticada.
+     *
+     * <p>La cadena exige autenticación; tras completar el caso de uso responde 204.
+     * No recibe un ID de actor y no implementa cierre de un único dispositivo.</p>
+     */
+    @PostMapping("/logout-all")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void logoutAll() {
+        logoutAllUseCase.logoutAll();
     }
 
 }

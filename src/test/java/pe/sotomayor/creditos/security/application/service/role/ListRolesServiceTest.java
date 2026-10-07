@@ -12,12 +12,14 @@ import pe.sotomayor.creditos.security.application.mapper.role.RoleMapper;
 import pe.sotomayor.creditos.security.domain.model.entity.Role;
 import pe.sotomayor.creditos.security.domain.repository.RoleRepository;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
@@ -31,108 +33,53 @@ class ListRolesServiceTest {
     private RoleMapper roleMapper;
 
     @InjectMocks
-    private ListRolesService listRolesService;
+    private ListRolesService service;
 
     @Test
-    void shouldReturnRolesWhenRolesExist() {
-
+    void shouldMapResultsWhenRecordsExist() throws Exception {
         /* Arrange */
-
-        Role admin = createRole(
-                1L,
-                "Administrador");
-
-        Role cajero = createRole(
-                2L,
-                "Cajero");
-
-        List<Role> roles = List.of(
-                admin,
-                cajero);
-
-        List<RoleResponse> responses = List.of(
-                createResponse(1L, "Administrador"),
-                createResponse(2L, "Cajero"));
-
-        when(roleRepository.findAll()).thenReturn(roles);
-        when(roleMapper.toResponse(admin)).thenReturn(responses.get(0));
-        when(roleMapper.toResponse(cajero)).thenReturn(responses.get(1));
+        Role entity = createRole();
+        RoleResponse expected = createResponse();
+        when(roleRepository.findAllByDeletedFalse()).thenReturn(List.of(entity));
+        when(roleMapper.toResponse(entity)).thenReturn(expected);
 
         /* Act */
-
-        List<RoleResponse> result = listRolesService.findAll();
+        List<RoleResponse> result = service.findAll();
 
         /* Assert */
-
-        assertNotNull(result);
-        assertEquals(
-                2,
-                result.size());
-
-        assertEquals(
-                "Administrador",
-                result.get(0).name());
-
-        assertEquals(
-                "Cajero",
-                result.get(1).name());
-
-        verify(roleRepository).findAll();
-        verify(roleMapper).toResponse(admin);
-        verify(roleMapper).toResponse(cajero);
-
-        verifyNoMoreInteractions(
-                roleRepository,
-                roleMapper);
+        assertThat(result).containsExactly(expected);
+        verify(roleRepository).findAllByDeletedFalse();
+        verify(roleMapper).toResponse(entity);
+        verifyNoMoreInteractions(roleRepository, roleMapper);
     }
 
     @Test
-    void shouldReturnEmptyListWhenNoRolesExist() {
-
+    void shouldReturnEmptyListWhenNoRecordsExist() throws Exception {
         /* Arrange */
-
-        when(roleRepository.findAll()).thenReturn(List.of());
+        when(roleRepository.findAllByDeletedFalse()).thenReturn(List.of());
 
         /* Act */
-
-        List<RoleResponse> result = listRolesService.findAll();
+        List<RoleResponse> result = service.findAll();
 
         /* Assert */
-
-        assertNotNull(result);
-        assertEquals(
-                0,
-                result.size());
-
-        verify(roleRepository).findAll();
-
-        verifyNoMoreInteractions(
-                roleRepository,
-                roleMapper);
+        assertThat(result).isEmpty();
+        verify(roleRepository).findAllByDeletedFalse();
+        verifyNoInteractions(roleMapper);
+        verifyNoMoreInteractions(roleRepository, roleMapper);
     }
 
-    private Role createRole(
-            Long id,
-            String name) {
-
-        Role role = new Role();
-
-        role.setId(id);
-        role.setName(name);
-        role.setDescription(
-                "Descripción del rol");
-
-        return role;
+    private Role createRole() {
+        return Role.builder()
+                .id(2L)
+                .name("Operador")
+                .description("Consulta de usuarios")
+                .permissions(new HashSet<>(Set.of("security:users:read")))
+                .deleted(false)
+                .build();
     }
 
-    private RoleResponse createResponse(
-            Long id,
-            String name) {
-
-        return new RoleResponse(
-                id,
-                name,
-                "Descripción del rol");
+    private RoleResponse createResponse() {
+        return new RoleResponse(2L, "Operador", "Consulta de usuarios");
     }
 
 }

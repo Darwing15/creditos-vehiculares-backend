@@ -2,6 +2,7 @@ package pe.sotomayor.creditos.security.application.service.role;
 
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,9 +38,10 @@ public class ListRolesService implements ListRolesUseCase {
      * @return lista de roles
      */
     @Override
+    @PreAuthorize("hasAuthority('security:roles:read')")
     public List<RoleResponse> findAll() {
 
-        return roleRepository.findAll()
+        return roleRepository.findAllByDeletedFalse()
                 .stream()
                 .map(roleMapper::toResponse)
                 .toList();

@@ -7,25 +7,37 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import org.springframework.security.access.AccessDeniedException;
+
 import pe.sotomayor.creditos.security.application.dto.role.response.RoleResponse;
 import pe.sotomayor.creditos.security.application.mapper.role.RoleMapper;
+
 import pe.sotomayor.creditos.security.domain.model.entity.Role;
+
+import pe.sotomayor.creditos.security.domain.model.enumeration.SecurityPermission;
 import pe.sotomayor.creditos.security.domain.repository.RoleRepository;
 import pe.sotomayor.creditos.security.domain.repository.UserRepository;
+
+import pe.sotomayor.creditos.security.infrastructure.security.service.SecurityWriteGate;
+import pe.sotomayor.creditos.security.infrastructure.security.service.SecurityWriteGate.WriteContext;
 
 import pe.sotomayor.creditos.shared.error.ErrorCode;
 import pe.sotomayor.creditos.shared.exception.ConflictException;
 import pe.sotomayor.creditos.shared.exception.ResourceNotFoundException;
 
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
+
+import static pe.sotomayor.creditos.security.domain.model.enumeration.SecurityPermission.ROLES_WRITE;
 
 @ExtendWith(MockitoExtension.class)
 class DeactivateRoleServiceTest {
@@ -34,149 +46,134 @@ class DeactivateRoleServiceTest {
     private RoleRepository roleRepository;
 
     @Mock
-    private UserRepository userRepository;
-
-    @Mock
     private RoleMapper roleMapper;
 
+    @Mock
+    private SecurityWriteGate gate;
+
+    @Mock
+    private UserRepository users;
+
     @InjectMocks
-    private DeactivateRoleService deactivateRoleService;
+    private DeactivateRoleService service;
 
     @Test
-    void shouldDeactivateRoleWhenRoleExistsAndIsNotInUse() {
-
+    void shouldDeactivateRoleWhenDataIsValid() throws Exception {
         /* Arrange */
-
-        Long roleId = 1L;
-
-        Role role = createRole(roleId);
-
-        RoleResponse expectedResponse = createResponse(roleId);
-
-        when(roleRepository.findById(roleId)).thenReturn(Optional.of(role));
-
-        when(userRepository.existsByRoleId(roleId)).thenReturn(false);
-
-        when(roleRepository.save(role)).thenReturn(role);
-
-        when(roleMapper.toResponse(role)).thenReturn(expectedResponse);
+        Role entity = createRole();
+        when(gate.begin(ROLES_WRITE)).thenReturn(createContext());
+        when(roleRepository.findByIdAndDeletedFalse(2L)).thenReturn(Optional.of(entity));
+        when(users.existsByRoleId(2L)).thenReturn(false);
+        RoleResponse expected = createResponse();
+        when(roleRepository.saveAndFlush(entity)).thenReturn(entity);
+        when(roleMapper.toResponse(entity)).thenReturn(expected);
 
         /* Act */
-
-        RoleResponse response =
-                deactivateRoleService.deactivate(roleId);
+        RoleResponse result = service.deactivate(2L);
 
         /* Assert */
-
-        assertEquals(true, role.getDeleted());
-        assertNotNull(role.getDeletedAt());
-        assertNotNull(response);
-        assertEquals(roleId, response.id());
-
-        assertEquals(
-                "Administrador",
-                response.name());
-
-        assertEquals(
-                "Rol con acceso total al sistema",
-                response.description());
-
-        verify(roleRepository).findById(roleId);
-        verify(userRepository).existsByRoleId(roleId);
-        verify(roleRepository).save(role);
-        verify(roleMapper).toResponse(role);
-
-        verifyNoMoreInteractions(
-                roleRepository,
-                userRepository,
-                roleMapper);
+        assertThat(result).isEqualTo(expected);
+        assertThat(entity.getDeleted()).isTrue();
+        assertThat(entity.getDeletedAt()).isNotNull();
+        verify(gate).begin(ROLES_WRITE);
+        verify(roleRepository).findByIdAndDeletedFalse(2L);
+        verify(users).existsByRoleId(2L);
+        verify(roleRepository).saveAndFlush(entity);
+        verify(gate).finish();
+        verify(roleMapper).toResponse(entity);
+        verifyNoMoreInteractions(roleRepository, roleMapper, gate, users);
     }
 
     @Test
-    void shouldThrowConflictExceptionWhenRoleHasAssignedUsers() {
-
+    void shouldStopBeforeReadingDataWhenWriteGateDeniesAccess() throws Exception {
         /* Arrange */
+        when(gate.begin(ROLES_WRITE)).thenThrow(new AccessDeniedException("denied"));
 
-        Long roleId = 1L;
+        /* Act */
+        Throwable thrown = catchThrowable(() -> service.deactivate(2L));
 
-        Role role = createRole(roleId);
-
-        when(roleRepository.findById(roleId)).thenReturn(Optional.of(role));
-        when(userRepository.existsByRoleId(roleId)).thenReturn(true);
-
-        /* Act & Assert */
-
-        ConflictException exception = assertThrows(
-                ConflictException.class,
-                () -> deactivateRoleService.deactivate(roleId)
-        );
-
-        assertEquals(
-                ErrorCode.ROLE_IN_USE,
-                exception.getErrorCode()
-        );
-
-        verify(roleRepository).findById(roleId);
-        verify(userRepository).existsByRoleId(roleId);
-
-        verifyNoMoreInteractions(
-                roleRepository,
-                userRepository,
-                roleMapper
-        );
+        /* Assert */
+        assertThat(thrown).isInstanceOf(AccessDeniedException.class);
+        verify(gate).begin(ROLES_WRITE);
+        verifyNoInteractions(roleRepository, roleMapper, users);
+        verifyNoMoreInteractions(roleRepository, roleMapper, gate, users);
     }
 
     @Test
-    void shouldThrowResourceNotFoundExceptionWhenRoleDoesNotExist() {
-
+    void shouldThrowNotFoundWhenRoleDoesNotExist() throws Exception {
         /* Arrange */
+        when(gate.begin(ROLES_WRITE)).thenReturn(createContext());
+        when(roleRepository.findByIdAndDeletedFalse(2L)).thenReturn(Optional.empty());
 
-        Long roleId = 1L;
+        /* Act */
+        Throwable thrown = catchThrowable(() -> service.deactivate(2L));
 
-        when(roleRepository.findById(roleId))
-                .thenReturn(Optional.empty());
-
-        /* Act & Assert */
-
-        ResourceNotFoundException exception = assertThrows(
-                ResourceNotFoundException.class,
-                () -> deactivateRoleService.deactivate(roleId)
-        );
-
-        assertEquals(
-                ErrorCode.ROLE_NOT_FOUND,
-                exception.getErrorCode()
-        );
-
-        verify(roleRepository).findById(roleId);
-
-        verifyNoMoreInteractions(
-                roleRepository,
-                userRepository,
-                roleMapper
-        );
+        /* Assert */
+        assertThat(thrown).isInstanceOf(ResourceNotFoundException.class).extracting("errorCode").isEqualTo(ErrorCode.ROLE_NOT_FOUND);
+        verify(gate).begin(ROLES_WRITE);
+        verify(roleRepository).findByIdAndDeletedFalse(2L);
+        verifyNoInteractions(roleMapper, users);
+        verifyNoMoreInteractions(roleRepository, roleMapper, gate, users);
     }
 
-    private Role createRole(Long id) {
+    @Test
+    void shouldRejectDeactivationWhenUsersRemainAssigned() throws Exception {
+        /* Arrange */
+        Role entity = createRole();
+        when(gate.begin(ROLES_WRITE)).thenReturn(createContext());
+        when(roleRepository.findByIdAndDeletedFalse(2L)).thenReturn(Optional.of(entity));
+        when(users.existsByRoleId(2L)).thenReturn(true);
 
-        Role role = new Role();
+        /* Act */
+        Throwable thrown = catchThrowable(() -> service.deactivate(2L));
 
-        role.setId(id);
-
-        role.setName("Administrador");
-
-        role.setDescription(
-                "Rol con acceso total al sistema");
-
-        return role;
+        /* Assert */
+        assertThat(thrown).isInstanceOf(ConflictException.class).extracting("errorCode").isEqualTo(ErrorCode.ROLE_IN_USE);
+        verify(gate).begin(ROLES_WRITE);
+        verify(roleRepository).findByIdAndDeletedFalse(2L);
+        verify(users).existsByRoleId(2L);
+        verifyNoInteractions(roleMapper);
+        verifyNoMoreInteractions(roleRepository, roleMapper, gate, users);
     }
 
-    private RoleResponse createResponse(Long id) {
+    @Test
+    void shouldRejectMutationWhenTargetHasSuperiorPermissions() throws Exception {
+        /* Arrange */
+        Role entity = createRole();
+        when(gate.begin(ROLES_WRITE)).thenReturn(new WriteContext(99L, Set.of("security:roles:write")));
+        when(roleRepository.findByIdAndDeletedFalse(2L)).thenReturn(Optional.of(entity));
 
+        /* Act */
+        Throwable thrown = catchThrowable(() -> service.deactivate(2L));
+
+        /* Assert */
+        assertThat(thrown).isInstanceOf(AccessDeniedException.class);
+        verify(gate).begin(ROLES_WRITE);
+        verify(roleRepository).findByIdAndDeletedFalse(2L);
+        verifyNoInteractions(roleMapper, users);
+        verifyNoMoreInteractions(roleRepository, roleMapper, gate, users);
+    }
+
+    private Role createRole() {
+        return Role.builder()
+                .id(2L)
+                .name("Operador")
+                .description("Consulta de usuarios")
+                .permissions(new HashSet<>(Set.of("security:users:read")))
+                .deleted(false)
+                .build();
+    }
+
+    private WriteContext createContext() {
+        return new WriteContext(99L, SecurityPermission.authorities());
+    }
+
+    private RoleResponse createResponse() {
         return new RoleResponse(
-                id,
-                "Administrador",
-                "Rol con acceso total al sistema");
+                2L,
+                "Operador",
+                "Consulta de usuarios"
+        );
     }
 
 }

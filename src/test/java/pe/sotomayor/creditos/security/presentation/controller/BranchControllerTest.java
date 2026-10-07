@@ -1,22 +1,28 @@
 package pe.sotomayor.creditos.security.presentation.controller;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import org.springframework.beans.factory.annotation.Autowired;
 
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.MediaType;
 
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import org.springframework.test.web.servlet.MockMvc;
 
-import pe.sotomayor.creditos.config.TestSecurityConfig;
+import org.springframework.test.web.servlet.MvcResult;
 
 import pe.sotomayor.creditos.security.application.dto.branch.request.CreateBranchRequest;
 import pe.sotomayor.creditos.security.application.dto.branch.request.UpdateBranchRequest;
@@ -27,173 +33,337 @@ import pe.sotomayor.creditos.security.application.usecase.branch.UpdateBranchUse
 import pe.sotomayor.creditos.security.application.usecase.branch.ListBranchesUseCase;
 import pe.sotomayor.creditos.security.application.usecase.branch.DeactivateBranchUseCase;
 
+import pe.sotomayor.creditos.security.domain.model.enumeration.SecurityPermission;
+import pe.sotomayor.creditos.security.infrastructure.security.config.SecurityConfig;
+import pe.sotomayor.creditos.security.infrastructure.security.config.SecurityErrorHandler;
+import pe.sotomayor.creditos.security.infrastructure.security.jwt.JwtService;
+import pe.sotomayor.creditos.security.infrastructure.security.model.SecurityPrincipal;
+import pe.sotomayor.creditos.security.infrastructure.security.service.CustomUserDetailsService;
+
+import pe.sotomayor.creditos.shared.error.ErrorCode;
+
+import pe.sotomayor.creditos.shared.exception.GlobalExceptionHandler;
+import pe.sotomayor.creditos.shared.exception.ResourceNotFoundException;
+
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 
-@WebMvcTest(BranchController.class)
-@Import(TestSecurityConfig.class)
-@AutoConfigureMockMvc
+@WebMvcTest(controllers = BranchController.class, properties = {
+        "app.security.allowed-origins=http://localhost:5173", "app.security.docs-enabled=false"})
+@Import({SecurityConfig.class, SecurityErrorHandler.class, GlobalExceptionHandler.class})
 class BranchControllerTest {
 
     @Autowired
-    private MockMvc mockMvc;
-
+    private MockMvc mvc;
     @Autowired
-    private ObjectMapper objectMapper;
-
+    private ObjectMapper json;
     @MockitoBean
-    private CreateBranchUseCase createBranchUseCase;
-
+    private JwtService jwt;
     @MockitoBean
-    private UpdateBranchUseCase updateBranchUseCase;
-
+    private CustomUserDetailsService users;
     @MockitoBean
-    private ListBranchesUseCase listBranchesUseCase;
-
+    private CreateBranchUseCase create;
     @MockitoBean
-    private DeactivateBranchUseCase deactivateBranchUseCase;
+    private UpdateBranchUseCase update;
+    @MockitoBean
+    private ListBranchesUseCase list;
+    @MockitoBean
+    private DeactivateBranchUseCase deactivate;
+    @AfterEach
+    void tearDown() { SecurityContextHolder.clearContext(); }
 
     @Test
-    void shouldCreateBranch() throws Exception {
+    void shouldCreateBranchWhenPermissionIsGranted() throws Exception {
+        /* Arrange */
+        CreateBranchRequest request = createCreateRequest();
+        BranchResponse expected = createResponse();
+        when(create.create(request)).thenReturn(expected);
 
-        CreateBranchRequest request = createRequest();
+        /* Act */
+        MvcResult result = mvc.perform(post("/api/security/branches")
+                .with(user(createPrincipal())).contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(request))).andReturn();
 
-        BranchResponse response = createResponse();
-
-        when(createBranchUseCase.create(request))
-                .thenReturn(response);
-
-        mockMvc.perform(
-                        post("/api/security/branches")
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content(
-                                        objectMapper.writeValueAsString(request)
-                                )
-                )
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.code")
-                        .value("TOC01"))
-                .andExpect(jsonPath("$.name")
-                        .value("Sucursal Tocache"));
-
-        verify(createBranchUseCase).create(request);
-
+        /* Assert */
+        assertThat(result.getResponse().getStatus()).isEqualTo(201);
+        assertThat(json.readValue(result.getResponse().getContentAsString(), BranchResponse.class)).isEqualTo(expected);
+        verify(create).create(request);
+        verifyNoMoreInteractions(create, update, list, deactivate, jwt, users);
     }
 
     @Test
-    void shouldFindAllBranches() throws Exception {
+    void shouldDenyCreateWhenAuthorityIsMissing() throws Exception {
+        /* Arrange */
+        CreateBranchRequest request = createCreateRequest();
 
-        when(listBranchesUseCase.findAll())
-                .thenReturn(
-                        List.of(createResponse())
-                );
+        /* Act */
+        MvcResult result = mvc.perform(post("/api/security/branches")
+                .with(user("reader@test.com").authorities(new SimpleGrantedAuthority("security:branches:read")))
+                .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(request))).andReturn();
 
-        mockMvc.perform(
-                        get("/api/security/branches")
-                )
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].code")
-                        .value("TOC01"));
-
-        verify(listBranchesUseCase).findAll();
+        /* Assert */
+        assertThat(result.getResponse().getStatus()).isEqualTo(403);
+        JsonNode body = json.readTree(result.getResponse().getContentAsString());
+        assertThat(body.path("errorCode").asText()).isEqualTo("FORBIDDEN");
+        verifyNoInteractions(create, update, list, deactivate, jwt, users);
+        verifyNoMoreInteractions(create, update, list, deactivate, jwt, users);
     }
 
     @Test
-    void shouldUpdateBranch() throws Exception {
+    void shouldUpdateBranchWhenPermissionIsGranted() throws Exception {
+        /* Arrange */
+        UpdateBranchRequest request = createUpdateRequest();
+        BranchResponse expected = createResponse();
+        when(update.update(3L, request)).thenReturn(expected);
 
-        UpdateBranchRequest request = updateRequest();
+        /* Act */
+        MvcResult result = mvc.perform(put("/api/security/branches/3")
+                .with(user(createPrincipal())).contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(request))).andReturn();
 
-        BranchResponse response = createResponse();
+        /* Assert */
+        assertThat(result.getResponse().getStatus()).isEqualTo(200);
+        assertThat(json.readValue(result.getResponse().getContentAsString(), BranchResponse.class)).isEqualTo(expected);
+        verify(update).update(3L, request);
+        verifyNoMoreInteractions(create, update, list, deactivate, jwt, users);
+    }
 
-        when(updateBranchUseCase.update(
+    @Test
+    void shouldDenyUpdateWhenAuthorityIsMissing() throws Exception {
+        /* Arrange */
+        UpdateBranchRequest request = createUpdateRequest();
+
+        /* Act */
+        MvcResult result = mvc.perform(put("/api/security/branches/3")
+                .with(user("reader@test.com").authorities(new SimpleGrantedAuthority("security:branches:read")))
+                .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(request))).andReturn();
+
+        /* Assert */
+        assertThat(result.getResponse().getStatus()).isEqualTo(403);
+        JsonNode body = json.readTree(result.getResponse().getContentAsString());
+        assertThat(body.path("errorCode").asText()).isEqualTo("FORBIDDEN");
+        verifyNoInteractions(create, update, list, deactivate, jwt, users);
+        verifyNoMoreInteractions(create, update, list, deactivate, jwt, users);
+    }
+
+    @Test
+    void shouldListBranchWhenPermissionIsGranted() throws Exception {
+        /* Arrange */
+        BranchResponse expected = createResponse();
+        when(list.findAll()).thenReturn(List.of(expected));
+
+        /* Act */
+        MvcResult result = mvc.perform(get("/api/security/branches").with(user(createPrincipal()))).andReturn();
+
+        /* Assert */
+        assertThat(result.getResponse().getStatus()).isEqualTo(200);
+        assertThat(json.readTree(result.getResponse().getContentAsString()).size()).isEqualTo(1);
+        assertThat(json.treeToValue(json.readTree(result.getResponse().getContentAsString()).get(0), BranchResponse.class)).isEqualTo(expected);
+        verify(list).findAll();
+        verifyNoMoreInteractions(create, update, list, deactivate, jwt, users);
+    }
+
+    @Test
+    void shouldDenyListWhenAuthorityIsMissing() throws Exception {
+        /* Arrange */
+        String loginName = "reader@test.com";
+
+        /* Act */
+        MvcResult result = mvc.perform(get("/api/security/branches")
+                .with(user("reader@test.com").authorities(new SimpleGrantedAuthority("unrelated:read"))))
+                .andReturn();
+
+        /* Assert */
+        assertThat(result.getResponse().getStatus()).isEqualTo(403);
+        JsonNode body = json.readTree(result.getResponse().getContentAsString());
+        assertThat(body.path("errorCode").asText()).isEqualTo("FORBIDDEN");
+        verifyNoInteractions(create, update, list, deactivate, jwt, users);
+        verifyNoMoreInteractions(create, update, list, deactivate, jwt, users);
+    }
+
+    @Test
+    void shouldDeactivateBranchWhenPermissionIsGranted() throws Exception {
+        /* Arrange */
+        BranchResponse expected = createResponse();
+        when(deactivate.deactivate(3L)).thenReturn(expected);
+
+        /* Act */
+        MvcResult result = mvc.perform(patch("/api/security/branches/3/deactivate")
+                .with(user(createPrincipal()))).andReturn();
+
+        /* Assert */
+        assertThat(result.getResponse().getStatus()).isEqualTo(200);
+        assertThat(json.readValue(result.getResponse().getContentAsString(), BranchResponse.class)).isEqualTo(expected);
+        verify(deactivate).deactivate(3L);
+        verifyNoMoreInteractions(create, update, list, deactivate, jwt, users);
+    }
+
+    @Test
+    void shouldDenyDeactivateWhenAuthorityIsMissing() throws Exception {
+        /* Arrange */
+        String loginName = "reader@test.com";
+
+        /* Act */
+        MvcResult result = mvc.perform(patch("/api/security/branches/3/deactivate")
+                .with(user("reader@test.com").authorities(new SimpleGrantedAuthority("security:branches:read"))))
+                .andReturn();
+
+        /* Assert */
+        assertThat(result.getResponse().getStatus()).isEqualTo(403);
+        JsonNode body = json.readTree(result.getResponse().getContentAsString());
+        assertThat(body.path("errorCode").asText()).isEqualTo("FORBIDDEN");
+        verifyNoInteractions(create, update, list, deactivate, jwt, users);
+        verifyNoMoreInteractions(create, update, list, deactivate, jwt, users);
+    }
+
+    @Test
+    void shouldRequireAuthenticationWhenListing() throws Exception {
+        /* Arrange */
+        String endpoint = "/api/security/branches";
+
+        /* Act */
+        MvcResult result = mvc.perform(get(endpoint)).andReturn();
+
+        /* Assert */
+        assertThat(result.getResponse().getStatus()).isEqualTo(401);
+        verifyNoInteractions(create, update, list, deactivate, jwt, users);
+        verifyNoMoreInteractions(create, update, list, deactivate, jwt, users);
+    }
+
+    @Test
+    void shouldRejectPayloadWhenRequiredNameIsBlank() throws Exception {
+        /* Arrange */
+        CreateBranchRequest valid = createCreateRequest();
+        ObjectNode payload = json.valueToTree(valid);
+        payload.put("name", "");
+
+        /* Act */
+        MvcResult result = mvc.perform(post("/api/security/branches")
+                .with(user(createPrincipal())).contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(payload))).andReturn();
+
+        /* Assert */
+        assertThat(result.getResponse().getStatus()).isEqualTo(400);
+        verifyNoInteractions(create, update, list, deactivate, jwt, users);
+        verifyNoMoreInteractions(create, update, list, deactivate, jwt, users);
+    }
+
+    @Test
+    void shouldReturnControlledErrorWhenRecordIsMissing() throws Exception {
+        /* Arrange */
+        UpdateBranchRequest request = createUpdateRequest();
+        when(update.update(3L, request)).thenThrow(new ResourceNotFoundException(ErrorCode.BRANCH_NOT_FOUND, "missing"));
+
+        /* Act */
+        MvcResult result = mvc.perform(put("/api/security/branches/3")
+                .with(user(createPrincipal())).contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(request))).andReturn();
+
+        /* Assert */
+        assertThat(result.getResponse().getStatus()).isEqualTo(404);
+        JsonNode body = json.readTree(result.getResponse().getContentAsString());
+        assertThat(body.path("errorCode").asText()).isEqualTo("BRANCH_NOT_FOUND");
+        assertThat(body.path("message").asText()).doesNotContain("private SQL");
+        verify(update).update(3L, request);
+        verifyNoMoreInteractions(create, update, list, deactivate, jwt, users);
+    }
+
+    @Test
+    void shouldReturnControlledErrorWhenVersionIsStale() throws Exception {
+        /* Arrange */
+        UpdateBranchRequest request = createUpdateRequest();
+        when(update.update(3L, request)).thenThrow(new OptimisticLockingFailureException("private SQL"));
+
+        /* Act */
+        MvcResult result = mvc.perform(put("/api/security/branches/3")
+                .with(user(createPrincipal())).contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(request))).andReturn();
+
+        /* Assert */
+        assertThat(result.getResponse().getStatus()).isEqualTo(409);
+        JsonNode body = json.readTree(result.getResponse().getContentAsString());
+        assertThat(body.path("errorCode").asText()).isEqualTo("CONCURRENT_MODIFICATION");
+        assertThat(body.path("message").asText()).doesNotContain("private SQL");
+        verify(update).update(3L, request);
+        verifyNoMoreInteractions(create, update, list, deactivate, jwt, users);
+    }
+
+    @Test
+    void shouldReturnControlledErrorWhenDatabaseConstraintFails() throws Exception {
+        /* Arrange */
+        UpdateBranchRequest request = createUpdateRequest();
+        when(update.update(3L, request)).thenThrow(new DataIntegrityViolationException("private SQL"));
+
+        /* Act */
+        MvcResult result = mvc.perform(put("/api/security/branches/3")
+                .with(user(createPrincipal())).contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(request))).andReturn();
+
+        /* Assert */
+        assertThat(result.getResponse().getStatus()).isEqualTo(409);
+        JsonNode body = json.readTree(result.getResponse().getContentAsString());
+        assertThat(body.path("errorCode").asText()).isEqualTo("DATA_INTEGRITY_CONFLICT");
+        assertThat(body.path("message").asText()).doesNotContain("private SQL");
+        verify(update).update(3L, request);
+        verifyNoMoreInteractions(create, update, list, deactivate, jwt, users);
+    }
+    private SecurityPrincipal createPrincipal() {
+        return new SecurityPrincipal(
                 1L,
-                request
-        ))
-                .thenReturn(response);
-
-        mockMvc.perform(
-                        put("/api/security/branches/1")
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content(
-                                        objectMapper.writeValueAsString(request)
-                                )
-                )
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id")
-                        .value(1));
-
-        verify(updateBranchUseCase).update(1L, request);
-    }
-
-    @Test
-    void shouldDeactivateBranch() throws Exception {
-
-        BranchResponse response = deactivateResponse();
-
-        when(deactivateBranchUseCase.deactivate(1L))
-                .thenReturn(response);
-
-        mockMvc.perform(
-                        patch("/api/security/branches/1/deactivate")
-                )
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.active")
-                        .value(false));
-
-        verify(deactivateBranchUseCase).deactivate(1L);
-    }
-
-    private CreateBranchRequest createRequest() {
-        return new CreateBranchRequest(
-                "TOC01",
-                "Sucursal Tocache",
-                "Av. Principal 123",
-                "987654321",
-                "tocache@creditos.com",
-                null
+                1L,
+                "Ana Perez",
+                "ana@test.com",
+                "encoded-password",
+                2L,
+                "Operador",
+                3L,
+                "Lima",
+                true,
+                SecurityPermission.authorities().stream()
+                .map(SimpleGrantedAuthority::new).toList()
         );
     }
-
     private BranchResponse createResponse() {
-
         return new BranchResponse(
-                1L,
-                "TOC01",
-                "Sucursal Tocache",
-                "Av. Principal 123",
-                "987654321",
-                "tocache@creditos.com",
+                3L,
+                "LIM",
+                "Lima",
+                "Av. Peru 123",
+                "999999999",
+                "lima@test.com",
                 null,
                 true
         );
     }
-
-    private UpdateBranchRequest updateRequest() {
-        return new UpdateBranchRequest(
-                "Sucursal Tocache Actualizada",
-                "Av. Principal 456",
+    private CreateBranchRequest createCreateRequest() {
+        return new CreateBranchRequest(
+                "LIM",
+                "Lima",
+                "Av. Peru 123",
                 "999999999",
-                "tocache@creditos.com",
+                "lima@test.com",
                 null
         );
     }
-
-    private BranchResponse deactivateResponse() {
-        return new BranchResponse(
-                1L,
-                "TOC01",
-                "Sucursal Tocache",
-                "Av. Principal 123",
-                "987654321",
-                "tocache@creditos.com",
-                null,
-                false
+    private UpdateBranchRequest createUpdateRequest() {
+        return new UpdateBranchRequest(
+                "Lima",
+                "Av. Peru 123",
+                "999999999",
+                "lima@test.com",
+                null
         );
     }
 

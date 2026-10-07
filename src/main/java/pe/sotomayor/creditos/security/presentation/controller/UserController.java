@@ -7,10 +7,20 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
-import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
+
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import pe.sotomayor.creditos.security.application.dto.user.request.CreateUserRequest;
 import pe.sotomayor.creditos.security.application.dto.user.request.UpdateUserRequest;
+
 import pe.sotomayor.creditos.security.application.dto.user.response.UserResponse;
 
 import pe.sotomayor.creditos.security.application.usecase.user.CreateUserUseCase;
@@ -50,6 +60,7 @@ public class UserController {
      * @return usuario creado
      */
     @PostMapping
+    @PreAuthorize("hasAuthority('security:users:write') and hasAuthority('security:users:assign-role')")
     public ResponseEntity<UserResponse> create(
             @Valid
             @RequestBody
@@ -69,6 +80,7 @@ public class UserController {
      * @return usuario actualizado
      */
     @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('security:users:write')")
     public ResponseEntity<UserResponse> update(
             @PathVariable Long id,
             @Valid
@@ -86,6 +98,7 @@ public class UserController {
      * @return lista de usuarios
      */
     @GetMapping
+    @PreAuthorize("hasAuthority('security:users:read')")
     public ResponseEntity<List<UserResponse>> findAll() {
 
         return ResponseEntity
@@ -100,6 +113,7 @@ public class UserController {
      * @return usuario desactivado
      */
     @PatchMapping("/{id}/deactivate")
+    @PreAuthorize("hasAuthority('security:users:write')")
     public ResponseEntity<UserResponse> deactivate(
             @PathVariable Long id) {
 

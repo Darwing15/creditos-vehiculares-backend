@@ -8,27 +8,33 @@ import org.mockito.Mock;
 
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import org.springframework.security.access.AccessDeniedException;
 import pe.sotomayor.creditos.security.application.dto.branch.response.BranchResponse;
 import pe.sotomayor.creditos.security.application.mapper.branch.BranchMapper;
 
 import pe.sotomayor.creditos.security.domain.model.entity.Branch;
 
+import pe.sotomayor.creditos.security.domain.model.enumeration.SecurityPermission;
 import pe.sotomayor.creditos.security.domain.repository.BranchRepository;
 import pe.sotomayor.creditos.security.domain.repository.UserRepository;
 
+import pe.sotomayor.creditos.security.infrastructure.security.service.SecurityWriteGate;
+import pe.sotomayor.creditos.security.infrastructure.security.service.SecurityWriteGate.WriteContext;
 import pe.sotomayor.creditos.shared.error.ErrorCode;
 import pe.sotomayor.creditos.shared.exception.ConflictException;
 import pe.sotomayor.creditos.shared.exception.ResourceNotFoundException;
 
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
+
+import static pe.sotomayor.creditos.security.domain.model.enumeration.SecurityPermission.BRANCHES_WRITE;
 
 @ExtendWith(MockitoExtension.class)
 class DeactivateBranchServiceTest {
@@ -37,178 +43,123 @@ class DeactivateBranchServiceTest {
     private BranchRepository branchRepository;
 
     @Mock
-    private UserRepository userRepository;
-
-    @Mock
     private BranchMapper branchMapper;
 
+    @Mock
+    private SecurityWriteGate gate;
+
+    @Mock
+    private UserRepository users;
+
     @InjectMocks
-    private DeactivateBranchService deactivateBranchService;
+    private DeactivateBranchService service;
 
     @Test
-    void shouldDeactivateBranchWhenBranchExistsAndHasNoUsers() {
-
+    void shouldDeactivateBranchWhenDataIsValid() throws Exception {
         /* Arrange */
-
-        Long branchId = 1L;
-
-        Branch branch = createBranch(branchId);
-
-        BranchResponse expectedResponse =
-                createResponse(branchId);
-
-        when(branchRepository.findById(branchId))
-                .thenReturn(Optional.of(branch));
-
-        when(userRepository.existsByBranchId(branchId))
-                .thenReturn(false);
-
-        when(branchRepository.save(branch))
-                .thenReturn(branch);
-
-        when(branchMapper.toResponse(branch))
-                .thenReturn(expectedResponse);
+        Branch entity = createBranch();
+        when(gate.begin(BRANCHES_WRITE)).thenReturn(createContext());
+        when(branchRepository.findByIdAndDeletedFalse(3L)).thenReturn(Optional.of(entity));
+        when(users.existsByBranchId(3L)).thenReturn(false);
+        BranchResponse expected = createResponse();
+        when(branchRepository.saveAndFlush(entity)).thenReturn(entity);
+        when(branchMapper.toResponse(entity)).thenReturn(expected);
 
         /* Act */
-
-        BranchResponse response =
-                deactivateBranchService.deactivate(branchId);
+        BranchResponse result = service.deactivate(3L);
 
         /* Assert */
-
-        assertNotNull(response);
-
-        assertEquals(
-                branchId,
-                response.id()
-        );
-
-        assertEquals(
-                "TOC01",
-                response.code()
-        );
-
-        assertEquals(
-                false,
-                branch.getActive()
-        );
-
-        verify(branchRepository).findById(branchId);
-        verify(userRepository).existsByBranchId(branchId);
-        verify(branchRepository).save(branch);
-        verify(branchMapper).toResponse(branch);
-
-        verifyNoMoreInteractions(
-                branchRepository,
-                userRepository,
-                branchMapper
-        );
+        assertThat(result).isEqualTo(expected);
+        assertThat(entity.getActive()).isFalse();
+        verify(gate).begin(BRANCHES_WRITE);
+        verify(branchRepository).findByIdAndDeletedFalse(3L);
+        verify(users).existsByBranchId(3L);
+        verify(branchRepository).saveAndFlush(entity);
+        verify(gate).finish();
+        verify(branchMapper).toResponse(entity);
+        verifyNoMoreInteractions(branchRepository, branchMapper, gate, users);
     }
 
     @Test
-    void shouldThrowConflictExceptionWhenBranchHasUsers() {
-
+    void shouldStopBeforeReadingDataWhenWriteGateDeniesAccess() throws Exception {
         /* Arrange */
+        when(gate.begin(BRANCHES_WRITE)).thenThrow(new AccessDeniedException("denied"));
 
-        Long branchId = 1L;
+        /* Act */
+        Throwable thrown = catchThrowable(() -> service.deactivate(3L));
 
-        Branch branch = createBranch(branchId);
-
-        when(branchRepository.findById(branchId))
-                .thenReturn(Optional.of(branch));
-
-        when(userRepository.existsByBranchId(branchId))
-                .thenReturn(true);
-
-        /* Act & Assert */
-
-        ConflictException exception =
-                assertThrows(
-                        ConflictException.class,
-                        () ->
-                                deactivateBranchService.deactivate(branchId)
-                );
-
-        assertEquals(
-                ErrorCode.BRANCH_IN_USE,
-                exception.getErrorCode()
-        );
-
-        verify(branchRepository).findById(branchId);
-        verify(userRepository).existsByBranchId(branchId);
-
-        verifyNoMoreInteractions(
-                branchRepository,
-                userRepository,
-                branchMapper
-        );
+        /* Assert */
+        assertThat(thrown).isInstanceOf(AccessDeniedException.class);
+        verify(gate).begin(BRANCHES_WRITE);
+        verifyNoInteractions(branchRepository, branchMapper, users);
+        verifyNoMoreInteractions(branchRepository, branchMapper, gate, users);
     }
 
     @Test
-    void shouldThrowResourceNotFoundExceptionWhenBranchDoesNotExist() {
-
+    void shouldThrowNotFoundWhenBranchDoesNotExist() throws Exception {
         /* Arrange */
+        when(gate.begin(BRANCHES_WRITE)).thenReturn(createContext());
+        when(branchRepository.findByIdAndDeletedFalse(3L)).thenReturn(Optional.empty());
 
-        Long branchId = 1L;
+        /* Act */
+        Throwable thrown = catchThrowable(() -> service.deactivate(3L));
 
-        when(branchRepository.findById(branchId))
-                .thenReturn(Optional.empty());
-
-        /* Act & Assert */
-
-        ResourceNotFoundException exception =
-                assertThrows(
-                        ResourceNotFoundException.class,
-                        () ->
-                                deactivateBranchService.deactivate(branchId)
-                );
-
-        assertEquals(
-                ErrorCode.BRANCH_NOT_FOUND,
-                exception.getErrorCode()
-        );
-
-        verify(branchRepository).findById(branchId);
-
-        verifyNoMoreInteractions(
-                branchRepository,
-                userRepository,
-                branchMapper
-        );
+        /* Assert */
+        assertThat(thrown).isInstanceOf(ResourceNotFoundException.class).extracting("errorCode").isEqualTo(ErrorCode.BRANCH_NOT_FOUND);
+        verify(gate).begin(BRANCHES_WRITE);
+        verify(branchRepository).findByIdAndDeletedFalse(3L);
+        verifyNoInteractions(branchMapper, users);
+        verifyNoMoreInteractions(branchRepository, branchMapper, gate, users);
     }
 
-    private Branch createBranch(Long id) {
+    @Test
+    void shouldRejectDeactivationWhenUsersRemainAssigned() throws Exception {
+        /* Arrange */
+        Branch entity = createBranch();
+        when(gate.begin(BRANCHES_WRITE)).thenReturn(createContext());
+        when(branchRepository.findByIdAndDeletedFalse(3L)).thenReturn(Optional.of(entity));
+        when(users.existsByBranchId(3L)).thenReturn(true);
 
-        Branch branch = new Branch();
+        /* Act */
+        Throwable thrown = catchThrowable(() -> service.deactivate(3L));
 
-        branch.setId(id);
-
-        branch.setCode("TOC01");
-
-        branch.setName("Sucursal Tocache");
-
-        branch.setAddress("Av. Principal 123");
-
-        branch.setPhone("987654321");
-
-        branch.setEmail("tocache@creditos.com");
-
-        branch.setActive(true);
-
-        return branch;
+        /* Assert */
+        assertThat(thrown).isInstanceOf(ConflictException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.BRANCH_IN_USE);
+        verify(gate).begin(BRANCHES_WRITE);
+        verify(branchRepository).findByIdAndDeletedFalse(3L);
+        verify(users).existsByBranchId(3L);
+        verifyNoInteractions(branchMapper);
+        verifyNoMoreInteractions(branchRepository, branchMapper, gate, users);
     }
 
-    private BranchResponse createResponse(Long id) {
+    private Branch createBranch() {
+        return Branch.builder()
+                .id(3L)
+                .code("LIM")
+                .name("Lima")
+                .address("Av. Peru 123")
+                .email("lima@test.com")
+                .phone("999999999")
+                .active(true)
+                .deleted(false)
+                .build();
+    }
 
+    private WriteContext createContext() {
+        return new WriteContext(99L, SecurityPermission.authorities());
+    }
+
+    private BranchResponse createResponse() {
         return new BranchResponse(
-                id,
-                "TOC01",
-                "Sucursal Tocache",
-                "Av. Principal 123",
-                "987654321",
-                "tocache@creditos.com",
+                3L,
+                "LIM",
+                "Lima",
+                "Av. Peru 123",
+                "999999999",
+                "lima@test.com",
                 null,
-                false
+                true
         );
     }
 

@@ -2,7 +2,9 @@ package pe.sotomayor.creditos.security.application.service.role;
 
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import pe.sotomayor.creditos.security.application.dto.role.request.CreateRoleRequest;
@@ -12,8 +14,10 @@ import pe.sotomayor.creditos.security.application.mapper.role.RoleMapper;
 import pe.sotomayor.creditos.security.application.usecase.role.CreateRoleUseCase;
 
 import pe.sotomayor.creditos.security.domain.model.entity.Role;
+import pe.sotomayor.creditos.security.domain.model.enumeration.SecurityPermission;
 import pe.sotomayor.creditos.security.domain.repository.RoleRepository;
 
+import pe.sotomayor.creditos.security.infrastructure.security.service.SecurityWriteGate;
 import pe.sotomayor.creditos.shared.error.ErrorCode;
 import pe.sotomayor.creditos.shared.exception.ConflictException;
 
@@ -28,13 +32,15 @@ import pe.sotomayor.creditos.shared.exception.ConflictException;
  * @author DarwinG
  */
 @Service
-@Transactional
+@Transactional(isolation = Isolation.READ_COMMITTED)
 @RequiredArgsConstructor
 public class CreateRoleService implements CreateRoleUseCase {
 
     private final RoleRepository roleRepository;
 
     private final RoleMapper roleMapper;
+
+    private final SecurityWriteGate securityWriteGate;
 
     /**
      * Registra un nuevo rol en el sistema.
@@ -43,7 +49,10 @@ public class CreateRoleService implements CreateRoleUseCase {
      * @return información del rol registrado
      */
     @Override
+    @PreAuthorize("hasAuthority('security:roles:write')")
     public RoleResponse create(CreateRoleRequest request) {
+
+        securityWriteGate.begin(SecurityPermission.ROLES_WRITE);
 
         if (roleRepository.existsByName(request.name())) {
             throw new ConflictException(
@@ -53,7 +62,8 @@ public class CreateRoleService implements CreateRoleUseCase {
 
         Role roleToSave = roleMapper.toEntity(request);
 
-        Role savedRole = roleRepository.save(roleToSave);
+        Role savedRole = roleRepository.saveAndFlush(roleToSave);
+        securityWriteGate.finish();
 
         return roleMapper.toResponse(savedRole);
     }

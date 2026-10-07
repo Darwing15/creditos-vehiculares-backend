@@ -1,27 +1,21 @@
 package pe.sotomayor.creditos.security.application.dto.auth.response;
 
 /**
- * Respuesta generada después de autenticar correctamente
- * un usuario dentro del sistema.
+ * Respuesta pública de un inicio de sesión correcto.
  *
- * <p>
- * Contiene la información necesaria para que el cliente
- * pueda establecer la sesión del usuario autenticado.
- * </p>
+ * <p>Conserva los campos existentes y agrega tipo/duración para que el cliente
+ * gestione una sesión temporal sin analizar claims para tomar decisiones de acceso.</p>
  *
- * <p>
- * El token corresponde a la credencial temporal utilizada
- * para acceder a recursos protegidos de la aplicación.
- * </p>
- *
- * @param token      token de autenticación generado para el usuario
- * @param userId     identificador único del usuario autenticado
- * @param fullName   nombre completo del usuario
- * @param email      correo electrónico utilizado para autenticación
+ * @param token      access token firmado; no registrar ni persistir en logs
+ * @param userId     identidad estable, conservando el nombre de campo del contrato actual
+ * @param fullName   nombre visible del usuario
+ * @param email      correo informativo de la cuenta autenticada
  * @param roleId     identificador del rol asignado
- * @param roleName   nombre del rol asignado
+ * @param roleName   nombre visible del rol, sin significado de autorización
  * @param branchId   identificador de la sucursal asignada
- * @param branchName nombre de la sucursal asignada
+ * @param branchName nombre visible de sucursal
+ * @param tokenType  esquema de envío de la credencial; en esta propuesta, Bearer
+ * @param expiresIn  duración nominal en segundos, no en milisegundos
  * @author DarwinG
  */
 public record LoginResponse(
@@ -40,7 +34,11 @@ public record LoginResponse(
 
         Long branchId,
 
-        String branchName
+        String branchName,
+
+        String tokenType,
+
+        long expiresIn
 
 ) {
 }
