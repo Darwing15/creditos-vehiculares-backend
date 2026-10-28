@@ -120,7 +120,7 @@ Ejemplo:
 * ✓ usuario inactivo
 * ✓ JWT generado
 
-### Controladores
+### Controladores/Serialización
 **No se prueban mediante mocks.**  
 Se prueban mediante:  
 `MockMvc`
@@ -133,6 +133,8 @@ Porque el objetivo es validar:
 * serialización
 
 No la lógica.
+
+Al ampliar un DTO de listado, la regresión deberá comprobar el JSON que usa la interfaz con el mapper real. En clientes, customerCode y address; en vehículos, chassisNumber y engineNumber. Una prueba de navegador con un mock que ya incluya esos campos no demuestra que el backend los devuelve.
 
 ### Repositorios
 **No tendrán pruebas unitarias.**  
@@ -223,6 +225,18 @@ verifyNoMoreInteractions(...);
 ```
 
 Las verificaciones forman parte de la validación del comportamiento esperado del componente bajo prueba y, por tanto, deben considerarse parte de la fase Assert del patrón AAA.
+
+## 8.3 Colaboradores deterministas en pruebas de servicio
+
+Las dependencias externas se simulan mediante Mockito. Cuando la prueba del caso de uso utiliza una conversión determinista, puede inyectarse la implementación real del mapper. Si se mantiene @InjectMocks y se necesita registrarla como spy, el campo debe inicializarse con Mappers.getMapper(...).
+
+```java
+@Spy
+IdentityLookupMapper mapper =
+        Mappers.getMapper(IdentityLookupMapper.class);
+```
+
+Importar org.mapstruct.factory.Mappers. Un @Spy de una interfaz sin inicialización no selecciona su implementación generada y un método abstracto puede devolver null. No se simulan toEntry ni toResponse para hacer pasar un escenario exitoso. Este patrón aplica a colaboradores reales en pruebas del servicio; las pruebas cuya unidad es el mapper conservan la regla de no utilizar Mockito.
 
 ## 9. Qué NO probar
 No probar:
@@ -557,3 +571,36 @@ Este enfoque mantiene las pruebas:
 * centradas exclusivamente en el comportamiento del componente.
 
 Las pruebas son parte del código fuente del proyecto y deberán mantener el mismo nivel de calidad, organización y claridad que el código de producción.
+
+## 19.2 Mappers generados con MapStruct
+
+Una prueba del mapper utiliza directamente la implementación generada con Mappers.getMapper(...), sin @SpringBootTest ni Mockito. Debe comprobar los campos relevantes y los métodos default que delegan a fábricas del dominio.
+
+```java
+private final IdentityLookupMapper mapper =
+        Mappers.getMapper(IdentityLookupMapper.class);
+```
+
+No construir la respuesta a mano como sustituto de la conversión real. Si el mapper incorpora colaboradores inyectados por Spring, proporcionarlos explícitamente en su prueba; no asumir que Mappers.getMapper resolverá un grafo de dependencias Spring.
+
+## 20 Pruebas de interfaz
+
+Las pruebas deben cubrir edición por UUID, documento obligatorio por tipo, ceros iniciales, pegado, cambio de tipo, precisión de montos y payload sin separadores. 
+
+La paginación verifica rangos, bordes, vacíos y reinicio al filtrar; los contadores del inventario deben conservar el conjunto completo de la sucursal. 
+
+Mantener regresiones de permisos, estado AVAILABLE, formulario desactualizado, doble envío y respuesta perdida.
+
+Estas pruebas de navegador usan API simulada para controlar fallos y permisos. Se acompañan de pruebas backend del contrato y PostgreSQL; no se denominan pruebas end to end con servidor real. No se añaden librerías de producción. Las nuevas pruebas backend siguen nombres should...When..., AAA, helpers privados al final y AssertJ; no usan ReflectionTestUtils ni Javadoc.
+
+Para la consulta DNI se comprueban: ausencia de llamadas con documento incompleto o CE; ceros iniciales; autocompletado; edición sin consumo externo; cambio de documento; respuesta tardía; corrección manual durante la búsqueda; reintento explícito; cierre del modal; sesión sustituida; documento discordante en respuesta; recuperación mediante nombre manual y guardado bloqueado mientras hay búsqueda pendiente. Se conservan las regresiones previas de formularios compartidos.
+
+## 21 Pruebas de integraciones externas
+
+Las pruebas automatizadas de contratos externos utilizan respuestas controladas y credenciales sintéticas. No necesitan el token real del proveedor ni consumen su cuota. El tiempo se representa mediante Clock fijo cuando determina vigencia o presupuesto.
+
+Las pruebas del caso de uso cubren caché vigente/vencida, proveedor deshabilitado, reserva de consumo, fallos externos sin persistencia y validación documental. Las del adaptador cubren JSON, documento coincidente, tamaño, estado funcional y traducción de transporte/status. MockMvc comprueba serialización, validación, permisos y códigos internos; un error de credencial externa no se transforma en un 401 de la sesión del operador.
+
+Las consultas nativas y reservas atómicas se verifican mediante PostgreSQL en Testcontainers: upsert, auditoría, instantes bajo zona Lima, concurrencia, rollback de reservas parciales y cambio de mes. No se utiliza la base de desarrollo.
+
+Un navegador con API simulada verifica la interfaz y sus fallos controlados; no es una prueba end to end contra Factiliza real. La disponibilidad externa y la integración operacional se verifican por separado mediante consultas autorizadas. La evidencia de entrega registra el conteo de pruebas por fecha, sin convertirlo en una regla permanente de este estándar.

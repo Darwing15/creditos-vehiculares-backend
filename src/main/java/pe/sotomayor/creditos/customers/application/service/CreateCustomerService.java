@@ -10,12 +10,13 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import pe.sotomayor.creditos.customers.application.dto.response.CustomerResponse;
 import pe.sotomayor.creditos.customers.application.mapper.CustomerMapper;
 import pe.sotomayor.creditos.customers.domain.model.entity.Customer;
+import pe.sotomayor.creditos.customers.domain.model.enumeration.CustomerDocumentType;
 import pe.sotomayor.creditos.customers.domain.repository.CustomerRepository;
 
 import pe.sotomayor.creditos.shared.security.CurrentBranchProvider;
 import pe.sotomayor.creditos.shared.error.ErrorCode;
 import pe.sotomayor.creditos.shared.exception.ConflictException;
-
+import pe.sotomayor.creditos.shared.exception.ValidationException;
 
 import pe.sotomayor.creditos.customers.application.dto.request.CreateCustomerRequest;
 import pe.sotomayor.creditos.customers.application.usecase.CreateCustomerUseCase;
@@ -45,6 +46,14 @@ public class CreateCustomerService implements CreateCustomerUseCase {
     @Override
     @PreAuthorize("hasAuthority('customers:write')")
     public CustomerResponse create(CreateCustomerRequest request) {
+
+        if (request.documentType() == CustomerDocumentType.DNI
+                && (request.documentNumber() == null
+                || !request.documentNumber().trim()
+                .matches("[0-9]{8}"))) {
+            throw new ValidationException(ErrorCode.IDENTITY_DOCUMENT_INVALID,
+                    "El alta con DNI requiere ocho dígitos ASCII.");
+        }
         Long branchId = branches.getCurrentBranchId();
 
         if (repository.existsDocumentIncludingDeleted(

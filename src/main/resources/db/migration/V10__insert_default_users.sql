@@ -2,16 +2,16 @@
  * V10: datos iniciales EXCLUSIVOS DE DESARROLLO Y PRUEBAS LOCALES.
  *
  * Requiere V1 (pgcrypto) y la V2.
- * Ejecutar como parte de la cadena completa de Flyway en una base vacía.
- * Las contraseñas de demostración son públicas, NO secretos de producción.
+ * Ejecutar como parte de la cadena completa de Flyway en una base vacia.
+ * Las contraseñas de demostracion son publicas, NO secretos de produccion.
  *
- * ADMIN recibe los ocho permisos actuales del módulo de seguridad.
- * USER puede autenticarse, pero no obtiene permisos de administración.
- * El nombre ADMIN se usa únicamente para identificar el rol al sembrar datos.
- * La autorización en ejecución debe basarse en role_permissions.
+ * ADMIN recibe los permisos actuales del modulo de seguridad.
+ * USER puede autenticarse, pero no obtiene permisos de administracion.
+ * El nombre ADMIN se usa unicamente para identificar el rol al sembrar datos.
+ * La autorizacion en ejecucion debe basarse en role_permissions.
  *
- * NULL en created_by/updated_by representa creación por migración, no un usuario 0.
- * No se fuerzan IDs: se resuelven mediante claves únicas de roles y sucursales.
+ * NULL en created_by/updated_by representa creacion por migracion, no un usuario 0.
+ * No se fuerzan IDs: se resuelven mediante claves unicas de roles y sucursales.
  * No se usa ON CONFLICT DO NOTHING: un estado inicial inesperado debe fallar.
  *
  * @author DarwinG
@@ -45,9 +45,9 @@ VALUES
         TRUE, NULL, NULL
     );
 
--- 3. Usuarios de demostración.
+-- 3. Usuarios de demostracion.
 -- pgcrypto genera BCrypt variante 2a con coste 12 y sal aleatoria por contraseña.
--- Las contraseñas cumplen la política actual: >= 15 caracteres y <= 72 bytes UTF-8.
+-- Las contraseñas cumplen la politica actual: >= 15 caracteres y <= 72 bytes UTF-8.
 -- ronald.sotomayor@inversiones.com -> AdminLocal2026#
 -- wendy.sotomayor@inversiones.com  -> UsuarioLocal2026#
 -- No reutilizar estas contraseñas fuera de una instalación local de pruebas.

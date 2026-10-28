@@ -1,13 +1,13 @@
 /*
- * V2: estructura inicial del módulo de seguridad.
+ * V2: estructura inicial del modulo de seguridad.
  *
  * row_version: bloqueo optimista de Hibernate (@Version).
- * token_version: revocación de JWT del usuario; es independiente de row_version.
- * role_permissions: autoridades explícitas, sin privilegios por nombre del rol.
+ * token_version: revocacion de JWT del usuario; es independiente de row_version.
+ * role_permissions: autoridades explicitas, sin privilegios por nombre del rol.
  * security_admin_guard: fila usada por SecurityWriteGate con SELECT FOR UPDATE.
  *
- * Los registros iniciales y la comprobación del administrador se cargan en V10.
- * Las reglas de autorización y del último administrador siguen en los servicios.
+ * Los registros iniciales y la comprobacion del administrador se cargan en V10.
+ * Las reglas de autorizacion y del ultimo administrador siguen en los servicios.
  *
  * @author DarwinG
  */

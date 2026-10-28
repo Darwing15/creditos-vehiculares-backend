@@ -166,7 +166,8 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.GET, "/api/customers",
                                     "/api/customers/{code}")
                             .hasAuthority("customers:read");
-                    auth.requestMatchers(HttpMethod.POST, "/api/customers")
+                    auth.requestMatchers(HttpMethod.POST, "/api/customers",
+                                    "/api/customers/identity-lookups")
                             .hasAuthority("customers:write");
                     auth.requestMatchers(HttpMethod.PUT, "/api/customers/{code}")
                             .hasAuthority("customers:write");

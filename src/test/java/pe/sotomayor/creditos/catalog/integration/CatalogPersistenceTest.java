@@ -132,7 +132,7 @@ class CatalogPersistenceTest {
         return new CreateCustomerRequest(
                 "Cliente",
                 CustomerDocumentType.DNI,
-                "CT-12345678",
+                "12345678",
                 null,
                 null,
                 "Comerciante",
@@ -198,7 +198,7 @@ class CatalogPersistenceTest {
         assertThat(detail.fullName())
                 .isEqualTo("Cliente editado");
         assertThat(detail.documentNumber())
-                .isEqualTo("CT-12345678");
+                .isEqualTo("12345678");
         assertThat(detail.branchId())
                 .isEqualTo(branch);
         assertThat(detail.revision())
@@ -346,7 +346,7 @@ class CatalogPersistenceTest {
                 vehicle.vehicleCode(), branch))
                 .isEmpty();
         assertThat(customers.existsDocumentIncludingDeleted(
-                "DNI", "CT-12345678"))
+                "DNI", "12345678"))
                 .isTrue();
         assertThat(vehicles.existsIdentifiersIncludingDeleted(
                 "CT-CHASSIS-1", "other", 0L))

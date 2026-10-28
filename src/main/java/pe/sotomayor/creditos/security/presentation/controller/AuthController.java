@@ -1,14 +1,19 @@
 package pe.sotomayor.creditos.security.presentation.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 
 import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
 import org.springframework.web.bind.annotation.GetMapping;
@@ -29,17 +34,17 @@ import pe.sotomayor.creditos.security.application.usecase.auth.GetAuthenticatedU
 import pe.sotomayor.creditos.security.application.usecase.auth.LogoutAllUseCase;
 
 /**
- * Expone los endpoints públicos de autenticación del sistema.
+ * Expone los endpoints publicos de autenticacion del sistema.
  *
  * <p>
- * Permite que los usuarios registrados inicien sesión mediante sus
+ * Permite que los usuarios registrados inicien sesion mediante sus
  * credenciales y obtengan un token JWT para acceder a los recursos
- * protegidos de la aplicación.
+ * protegidos de la aplicacion.
  * </p>
  *
  * <p>
- * Este controlador delega completamente la lógica de autenticación
- * al caso de uso correspondiente, manteniendo la capa de presentación
+ * Este controlador delega completamente la logica de autenticacion
+ * al caso de uso correspondiente, manteniendo la capa de presentacion
  * libre de reglas de negocio.
  * </p>
  *
@@ -64,6 +69,39 @@ public class AuthController {
      * @param request credenciales de autenticación
      * @return token JWT e información básica del usuario autenticado
      */
+    @Operation(
+            operationId = "login",
+            summary = "Iniciar sesión",
+            description = """
+                    Autentica una cuenta mediante correo electrónico y contraseña.
+                    Endpoint público: no requiere un JWT previo.
+                    Normaliza el correo recortando espacios exteriores y convirtiéndolo a minúsculas;
+                    conserva la contraseña exactamente como fue enviada.
+                    Comprueba las credenciales y el estado de la cuenta, y devuelve un JWT de acceso
+                    junto con los datos del usuario, su rol y su sucursal.
+                    tokenType indica el esquema Bearer y expiresIn expresa la duración nominal en segundos.
+                    Para acceder después a recursos protegidos, enviar Authorization: Bearer <token>.
+                    El ejemplo contiene credenciales sintéticas y no identifica una cuenta existente.
+                    """,
+            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    required = true,
+                    description = "Credenciales de la cuenta. Utilizar una cuenta de pruebas del entorno.",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = LoginRequest.class),
+                            examples = @ExampleObject(
+                                    name = "CredencialesSinteticas",
+                                    value = """
+                                            {
+                                              "email": "ronald.sotomayor@inversiones.com",
+                                              "password": "AdminLocal2026#"
+                                            }
+                                            """
+                            )
+                    )
+            )
+    )
+    @SecurityRequirements
     @PostMapping("/login")
     @ResponseStatus(HttpStatus.OK)
     public LoginResponse login(@Valid

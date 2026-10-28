@@ -69,6 +69,22 @@ public enum ErrorCode {
 
     CUSTOMER_ALREADY_EXISTS,
 
+    IDENTITY_DOCUMENT_INVALID,
+
+    IDENTITY_NOT_FOUND,
+
+    IDENTITY_LOOKUP_DISABLED,
+
+    IDENTITY_RATE_LIMITED,
+
+    IDENTITY_QUOTA_EXHAUSTED,
+
+    IDENTITY_PROVIDER_UNAVAILABLE,
+
+    IDENTITY_PROVIDER_TIMEOUT,
+
+    IDENTITY_PROVIDER_INVALID_RESPONSE,
+
     // ==========================================================
     // VEHICLES
     // ==========================================================
