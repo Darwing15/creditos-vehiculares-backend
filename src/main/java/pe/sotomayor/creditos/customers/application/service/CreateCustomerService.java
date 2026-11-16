@@ -22,6 +22,8 @@ import pe.sotomayor.creditos.customers.application.dto.request.CreateCustomerReq
 import pe.sotomayor.creditos.customers.application.usecase.CreateCustomerUseCase;
 import pe.sotomayor.creditos.customers.domain.service.CustomerCodeGenerator;
 
+import java.util.Locale;
+
 /**
  * Registra en la sucursal autenticada; la BD arbitra duplicados concurrentes.
  *
@@ -47,18 +49,24 @@ public class CreateCustomerService implements CreateCustomerUseCase {
     @PreAuthorize("hasAuthority('customers:write')")
     public CustomerResponse create(CreateCustomerRequest request) {
 
+        String documentNumber = request.documentNumber() == null ? null : request.documentNumber().trim();
         if (request.documentType() == CustomerDocumentType.DNI
-                && (request.documentNumber() == null
-                || !request.documentNumber().trim()
-                .matches("[0-9]{8}"))) {
+                && (documentNumber == null || !documentNumber.matches("[0-9]{8}"))) {
             throw new ValidationException(ErrorCode.IDENTITY_DOCUMENT_INVALID,
                     "El alta con DNI requiere ocho dígitos ASCII.");
+        }
+        if (request.documentType() == CustomerDocumentType.CE) {
+            if (documentNumber == null || !documentNumber.matches("[A-Za-z0-9]{1,15}")) {
+                throw new ValidationException(ErrorCode.CUSTOMER_INVALID_CE,
+                        "El CE debe tener entre 1 y 15 caracteres alfanuméricos ASCII.");
+            }
+            documentNumber = documentNumber.toUpperCase(Locale.ROOT);
         }
         Long branchId = branches.getCurrentBranchId();
 
         if (repository.existsDocumentIncludingDeleted(
                 request.documentType().name(),
-                request.documentNumber().trim())) {
+                documentNumber)) {
             throw new ConflictException(
                     ErrorCode.CUSTOMER_ALREADY_EXISTS,
                     "Identifiers already registered");
@@ -68,7 +76,7 @@ public class CreateCustomerService implements CreateCustomerUseCase {
                 codeGenerator.generate(),
                 request.fullName().trim(),
                 request.documentType(),
-                request.documentNumber().trim(),
+                documentNumber,
                 request.phone(),
                 request.email(),
                 request.occupation(),

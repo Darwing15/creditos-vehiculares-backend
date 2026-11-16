@@ -19,6 +19,8 @@ import pe.sotomayor.creditos.vehicles.application.dto.request.CreateVehicleReque
 import pe.sotomayor.creditos.vehicles.application.dto.request.UpdateVehicleRequest;
 
 import pe.sotomayor.creditos.vehicles.application.dto.response.VehicleOptionResponse;
+import pe.sotomayor.creditos.vehicles.application.dto.response.VehicleOverviewResponse;
+import pe.sotomayor.creditos.vehicles.application.dto.response.VehiclePageResponse;
 import pe.sotomayor.creditos.vehicles.application.dto.response.VehicleResponse;
 
 import pe.sotomayor.creditos.vehicles.application.usecase.CreateVehicleUseCase;
@@ -59,6 +61,36 @@ public class VehicleController {
     public ResponseEntity<List<VehicleOptionResponse>> list(
             @RequestParam(required = false) VehicleStatus status) {
         return ResponseEntity.ok(listVehicles.list(status));
+    }
+
+    /**
+     * Consulta inventario paginado de la sucursal autenticada.
+     *
+     * @param q      fragmento literal de busqueda
+     * @param status estado opcional
+     * @param brand  marca opcional
+     * @param page   numero de pagina desde cero
+     * @param size   tamaño de la pagina
+     * @return pagina y totales del filtro
+     */
+    @GetMapping("/page")
+    public ResponseEntity<VehiclePageResponse> listPage(
+            @RequestParam(defaultValue = "") String q,
+            @RequestParam(required = false) VehicleStatus status,
+            @RequestParam(defaultValue = "") String brand,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return ResponseEntity.ok(listVehicles.searchPage(q, status, brand, page, size));
+    }
+
+    /**
+     * Consulta indicadores y marcas de toda la sucursal autenticada.
+     *
+     * @return resumen de inventario sin aplicar filtros del listado
+     */
+    @GetMapping("/overview")
+    public ResponseEntity<VehicleOverviewResponse> overview() {
+        return ResponseEntity.ok(listVehicles.overview());
     }
 
     /**

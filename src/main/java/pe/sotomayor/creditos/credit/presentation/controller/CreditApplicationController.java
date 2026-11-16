@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import pe.sotomayor.creditos.credit.application.dto.creditapplication.request.CreateCreditApplicationRequest;
 import pe.sotomayor.creditos.credit.application.dto.creditapplication.request.RejectCreditApplicationRequest;
-
+import pe.sotomayor.creditos.credit.application.dto.creditapplication.response.CreditApplicationPageResponse;
 import pe.sotomayor.creditos.credit.application.dto.creditapplication.response.CreditApplicationResponse;
 
 import pe.sotomayor.creditos.credit.application.dto.creditsimulation.request.CreditSimulationRequest;
@@ -39,11 +39,11 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Controlador REST para la gestión de solicitudes de crédito.
+ * Controlador REST para la gestion de solicitudes de credito.
  *
  * <p>
  * Expone los endpoints HTTP asociados al agregado
- * CreditApplication y delega la ejecución de los casos de uso
+ * CreditApplication y delega la ejecucion de los casos de uso
  * a la capa Application.
  * </p>
  *
@@ -76,11 +76,11 @@ public class CreditApplicationController {
             simulateCreditApplicationUseCase;
 
     /**
-     * Registra una nueva solicitud de crédito.
+     * Registra una nueva solicitud de credito.
      *
-     * @param request información requerida para registrar
+     * @param request informacion requerida para registrar
      *                la solicitud.
-     * @return solicitud de crédito creada.
+     * @return solicitud de credito creada.
      */
     @PostMapping
     public ResponseEntity<CreditApplicationResponse> create(
@@ -98,10 +98,10 @@ public class CreditApplicationController {
     }
 
     /**
-     * Aprueba una solicitud de crédito pendiente.
+     * Aprueba una solicitud de credito pendiente.
      *
-     * @param applicationCode código público de la solicitud.
-     * @return solicitud de crédito aprobada.
+     * @param applicationCode codigo publico de la solicitud.
+     * @return solicitud de credito aprobada.
      */
     @PatchMapping("/{applicationCode}/approve")
     public ResponseEntity<CreditApplicationResponse> approve(
@@ -115,11 +115,11 @@ public class CreditApplicationController {
     }
 
     /**
-     * Rechaza una solicitud de crédito pendiente.
+     * Rechaza una solicitud de credito pendiente.
      *
-     * @param applicationCode código público de la solicitud.
-     * @param request         información requerida para efectuar el rechazo.
-     * @return solicitud de crédito rechazada.
+     * @param applicationCode codigo publico de la solicitud.
+     * @param request         informacion requerida para efectuar el rechazo.
+     * @return solicitud de credito rechazada.
      */
     @PatchMapping("/{applicationCode}/reject")
     public ResponseEntity<CreditApplicationResponse> reject(
@@ -137,10 +137,10 @@ public class CreditApplicationController {
     }
 
     /**
-     * Cancela una solicitud de crédito pendiente.
+     * Cancela una solicitud de credito pendiente.
      *
-     * @param applicationCode código público de la solicitud.
-     * @return solicitud de crédito cancelada.
+     * @param applicationCode codigo publico de la solicitud.
+     * @return solicitud de credito cancelada.
      */
     @PatchMapping("/{applicationCode}/cancel")
     public ResponseEntity<CreditApplicationResponse> cancel(
@@ -154,10 +154,10 @@ public class CreditApplicationController {
     }
 
     /**
-     * Obtiene una solicitud de crédito mediante su código público.
+     * Obtiene una solicitud de credito mediante su codigo publico.
      *
-     * @param applicationCode código público de la solicitud.
-     * @return solicitud de crédito encontrada.
+     * @param applicationCode codigo publico de la solicitud.
+     * @return solicitud de credito encontrada.
      */
     @GetMapping("/{applicationCode}")
     public ResponseEntity<CreditApplicationResponse>
@@ -171,11 +171,11 @@ public class CreditApplicationController {
     }
 
     /**
-     * Obtiene las solicitudes de crédito que se encuentran
+     * Obtiene las solicitudes de credito que se encuentran
      * en el estado indicado.
      *
      * @param status estado de las solicitudes a consultar.
-     * @return solicitudes de crédito encontradas.
+     * @return solicitudes de credito encontradas.
      */
     @GetMapping
     public ResponseEntity<List<CreditApplicationResponse>>
@@ -189,7 +189,26 @@ public class CreditApplicationController {
     }
 
     /**
-     * Calcula una cuota estimada sin guardar solicitud ni crédito.
+     * Consulta solicitudes paginadas de la sucursal autenticada.
+     *
+     * @param status estado obligatorio
+     * @param q      fragmento literal de busqueda sujeto a los permisos de lectura
+     * @param page   numero de pagina desde cero
+     * @param size   tamaño de la pagina
+     * @return pagina y totales de solicitudes visibles
+     */
+    @GetMapping("/page")
+    public ResponseEntity<CreditApplicationPageResponse> searchPage(
+            @RequestParam CreditApplicationStatus status,
+            @RequestParam(defaultValue = "") String q,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return ResponseEntity.ok(
+                listCreditApplicationsUseCase.searchPage(status, q, page, size));
+    }
+
+    /**
+     * Calcula una cuota estimada sin guardar solicitud ni credito.
      *
      * @param request condiciones financieras tentativas
      * @return resumen calculado con los servicios de dominio

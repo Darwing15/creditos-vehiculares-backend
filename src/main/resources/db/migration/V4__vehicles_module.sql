@@ -252,6 +252,12 @@ CREATE INDEX idx_vehicles_brand
     ON vehicles(brand)
     WHERE is_deleted = FALSE;
 
+CREATE UNIQUE INDEX uk_vehicles_chassis_number_upper
+    ON vehicles (upper(chassis_number));
+
+CREATE UNIQUE INDEX uk_vehicles_engine_number_upper
+    ON vehicles (upper(engine_number));
+
 
 /*=========================================================
  DOCUMENTATION

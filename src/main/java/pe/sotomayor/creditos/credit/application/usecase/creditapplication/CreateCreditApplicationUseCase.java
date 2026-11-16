@@ -8,7 +8,7 @@ import pe.sotomayor.creditos.credit.application.dto.creditapplication.response
 
 /**
  * Define el caso de uso para registrar nuevas solicitudes
- * de crédito.
+ * de credito.
  *
  * @author DarwinG
  */
@@ -17,9 +17,9 @@ public interface CreateCreditApplicationUseCase {
     /**
      * Registra una nueva solicitud de financiamiento.
      *
-     * @param request información requerida para registrar
+     * @param request informacion requerida para registrar
      *                la solicitud.
-     * @return información de la solicitud registrada.
+     * @return informacion de la solicitud registrada.
      */
     CreditApplicationResponse create(
             CreateCreditApplicationRequest request

@@ -24,10 +24,9 @@ import pe.sotomayor.creditos.credit.domain.model.enumeration.FinancingCurrency;
 import pe.sotomayor.creditos.credit.domain.repository.CreditApplicationRepository;
 
 import pe.sotomayor.creditos.credit.domain.service.CreditCalculator;
-
 import pe.sotomayor.creditos.credit.domain.service.creditapplication.CreditApplicationCodeGenerator;
-
 import pe.sotomayor.creditos.credit.domain.service.creditapplication.CreditApplicationNumberGenerator;
+import pe.sotomayor.creditos.credit.domain.service.installment.InstallmentTermsCalculator;
 
 import pe.sotomayor.creditos.customers.domain.model.entity.Customer;
 import pe.sotomayor.creditos.customers.domain.repository.CustomerRepository;
@@ -67,6 +66,10 @@ class CreateCreditApplicationServiceTest {
     @Mock
     private CreditCalculator
             creditCalculator;
+
+    @Mock
+    private InstallmentTermsCalculator
+            installmentTermsCalculator;
 
     @Mock
     private CreditApplicationCodeGenerator

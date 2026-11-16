@@ -214,6 +214,10 @@ CREATE INDEX idx_customers_branch_active
     ON customers(branch_id, is_active)
     WHERE is_deleted = FALSE;
 
+CREATE UNIQUE INDEX uk_customers_ce_document_upper
+    ON customers (upper(document_number))
+    WHERE document_type = 'CE';
+
 
 /*=========================================================
  DOCUMENTATION

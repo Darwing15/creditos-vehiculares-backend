@@ -5,7 +5,7 @@ server:
 
 spring:
   application:
-    name: credits-system
+    name: creditos-vehiculares-backend
 
   banner:
     location: classpath:banner.txt
@@ -27,6 +27,7 @@ spring:
     jwt:
       secret: ${JWT_SECRET_BASE64}
       expiration: 600000
+      absolute-lifetime: ${JWT_ABSOLUTE_LIFETIME_MS:28800000}
       issuer: creditos-api
       audience: creditos-web
       clock-skew-seconds: 30

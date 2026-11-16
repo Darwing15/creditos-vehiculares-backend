@@ -8,6 +8,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -16,6 +17,7 @@ import org.mapstruct.factory.Mappers;
 import pe.sotomayor.creditos.customers.application.dto.request.CreateCustomerRequest;
 import pe.sotomayor.creditos.customers.application.dto.request.UpdateCustomerRequest;
 import pe.sotomayor.creditos.customers.application.mapper.CustomerMapper;
+
 import pe.sotomayor.creditos.customers.domain.model.entity.Customer;
 import pe.sotomayor.creditos.customers.domain.repository.CustomerRepository;
 import pe.sotomayor.creditos.customers.domain.service.CustomerCodeGenerator;
@@ -27,7 +29,7 @@ import pe.sotomayor.creditos.shared.exception.ConflictException;
 import pe.sotomayor.creditos.shared.exception.ResourceNotFoundException;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.never;
@@ -107,14 +109,24 @@ class CustomerManagementServiceTest {
 
     @Test
     void createUsesGeneratedIdentitySessionBranchAndInitialState() {
+
+        /* Arrange */
+
         when(codes.generate()).thenReturn(CODE);
-        when(repository.saveAndFlush(any())).thenAnswer(invocation -> {
+        when(repository.saveAndFlush(any()))
+                .thenAnswer(invocation -> {
             Customer saved = invocation.getArgument(0);
             saved.setId(9L);
             return saved;
         });
+
+        /* Act */
+
         var response = create.create(createRequest());
-        var captor = org.mockito.ArgumentCaptor.forClass(Customer.class);
+
+        /* Assert */
+
+        var captor = ArgumentCaptor.forClass(Customer.class);
         verify(repository).saveAndFlush(captor.capture());
         var saved = captor.getValue();
         assertThat(saved.getCustomerCode()).isEqualTo(CODE);
@@ -128,22 +140,41 @@ class CustomerManagementServiceTest {
 
     @Test
     void duplicateCreateStopsBeforeGeneratingIdentityOrWriting() {
+
+        /* Arrange */
+
         when(repository.existsDocumentIncludingDeleted("DNI", "12345678"))
                 .thenReturn(true);
-        assertThatThrownBy(() -> create.create(createRequest()))
-                .isInstanceOf(ConflictException.class)
-                .extracting("errorCode").isEqualTo(ErrorCode.CUSTOMER_ALREADY_EXISTS);
+
+        /* Act */
+
+        var failure = catchThrowable(() -> create.create(createRequest()));
+
+        /* Assert */
+
+        assertThat(failure).isInstanceOf(ConflictException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.CUSTOMER_ALREADY_EXISTS);
         verifyNoInteractions(codes);
         verify(repository, never()).saveAndFlush(any());
     }
 
     @Test
     void updatePreservesIdentityAndBranchAndChangesRevision() {
+
+        /* Arrange */
+
         when(repository.findByCustomerCodeAndBranchIdForUpdate(CODE, 3L))
                 .thenReturn(Optional.of(current));
         when(repository.saveAndFlush(current)).thenReturn(current);
         String before = mapper.revision(current);
+
+        /* Act */
+
         var response = update.update(CODE, updateRequest(before));
+
+        /* Assert */
+
         assertThat(current.getFullName()).isEqualTo("Cliente actualizado");
         assertThat(current.getDocumentNumber()).isEqualTo("12345678");
         assertThat(current.getDocumentType()).isEqualTo(CustomerDocumentType.DNI);
@@ -156,10 +187,21 @@ class CustomerManagementServiceTest {
 
     @Test
     void staleFormDoesNotChangeOrSaveRecord() {
-        when(repository.findByCustomerCodeAndBranchIdForUpdate(CODE, 3L)).thenReturn(Optional.of(current));
+
+        /* Arrange */
+
+        when(repository.findByCustomerCodeAndBranchIdForUpdate(CODE, 3L))
+                .thenReturn(Optional.of(current));
         String before = mapper.revision(current);
-        assertThatThrownBy(() -> update.update(CODE, updateRequest("0".repeat(64))))
-                .isInstanceOf(ConflictException.class).extracting("errorCode")
+
+        /* Act */
+
+        var failure = catchThrowable(() -> update.update(CODE, updateRequest("0".repeat(64))));
+
+        /* Assert */
+
+        assertThat(failure).isInstanceOf(ConflictException.class)
+                .extracting("errorCode")
                 .isEqualTo(ErrorCode.CONCURRENT_MODIFICATION);
         assertThat(mapper.revision(current)).isEqualTo(before);
         verify(repository, never()).saveAndFlush(any());
@@ -167,8 +209,18 @@ class CustomerManagementServiceTest {
 
     @Test
     void updateDoesNotFallBackToUnscopedLookup() {
-        assertThatThrownBy(() -> update.update(CODE, updateRequest("0".repeat(64))))
-                .isInstanceOf(ResourceNotFoundException.class).extracting("errorCode")
+
+        /* Arrange */
+        var request = updateRequest("0".repeat(64));
+
+        /* Act */
+
+        var failure = catchThrowable(() -> update.update(CODE, request));
+
+        /* Assert */
+
+        assertThat(failure).isInstanceOf(ResourceNotFoundException.class)
+                .extracting("errorCode")
                 .isEqualTo(ErrorCode.CUSTOMER_NOT_FOUND);
         verify(repository).findByCustomerCodeAndBranchIdForUpdate(CODE, 3L);
         verify(repository, never()).saveAndFlush(any());
@@ -176,9 +228,18 @@ class CustomerManagementServiceTest {
 
     @Test
     void getReadsOnlyFromCurrentBranch() {
+
+        /* Arrange */
+
         when(repository.findByCustomerCodeAndBranchId(CODE, 3L))
                 .thenReturn(Optional.of(current));
+
+        /* Act */
+
         var response = get.get(CODE);
+
+        /* Assert */
+
         assertThat(response.customerCode()).isEqualTo(CODE);
         assertThat(response.revision()).isEqualTo(mapper.revision(current));
         verify(repository).findByCustomerCodeAndBranchId(CODE, 3L);
@@ -186,8 +247,18 @@ class CustomerManagementServiceTest {
 
     @Test
     void getHidesMissingDeletedAndOtherBranchResources() {
-        assertThatThrownBy(() -> get.get(CODE))
-                .isInstanceOf(ResourceNotFoundException.class);
+
+        /* Arrange */
+
+        var code = CODE;
+
+        /* Act */
+
+        var failure = catchThrowable(() -> get.get(code));
+
+        /* Assert */
+
+        assertThat(failure).isInstanceOf(ResourceNotFoundException.class);
         verify(repository).findByCustomerCodeAndBranchId(CODE, 3L);
     }
 

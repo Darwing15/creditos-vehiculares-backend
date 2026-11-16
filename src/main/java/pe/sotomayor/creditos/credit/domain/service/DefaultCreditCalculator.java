@@ -8,17 +8,17 @@ import static pe.sotomayor.creditos.shared.error.ErrorCode.CREDIT_APPLICATION_IN
 import static pe.sotomayor.creditos.shared.error.ErrorCode.CREDIT_APPLICATION_INVALID_INSTALLMENT_COUNT;
 
 /**
- * Implementación por defecto de los cálculos financieros
- * del dominio de créditos.
+ * Implementacion por defecto de los calculos financieros
+ * del dominio de creditos.
  *
  * <p>
- * Centraliza reglas determinísticas relacionadas con las
- * condiciones financieras utilizadas durante la evaluación
- * y formalización de un financiamiento.
+ * Centraliza reglas deterministicas relacionadas con las
+ * condiciones financieras utilizadas durante la evaluacion
+ * y formalizacion de un financiamiento.
  * </p>
  *
  * <p>
- * Esta implementación pertenece al dominio y no depende de
+ * Esta implementacion pertenece al dominio y no depende de
  * infraestructura ni de componentes de Spring.
  * </p>
  *
@@ -53,9 +53,6 @@ public class DefaultCreditCalculator implements CreditCalculator {
 
     private static final BigDecimal SIXTH_RANGE_LIMIT =
             new BigDecimal("13500.00");
-
-    private static final BigDecimal MAX_FINANCED_AMOUNT =
-            new BigDecimal("15500.00");
 
     private static final BigDecimal FIRST_RANGE_RATE =
             new BigDecimal("2.00");
@@ -119,18 +116,18 @@ public class DefaultCreditCalculator implements CreditCalculator {
 
     /**
      * Valida que la cuota inicial cumpla las reglas necesarias
-     * para calcular un monto financiado válido.
+     * para calcular un monto financiado valido.
      *
      * <p>
      * La cuota inicial debe ser mayor o igual a cero y menor
-     * que el precio del vehículo.
+     * que el precio del vehiculo.
      * </p>
      *
-     * @param vehiclePrice precio de venta del vehículo.
+     * @param vehiclePrice precio de venta del vehiculo.
      * @param downPayment  cuota inicial propuesta.
      * @throws ValidationException si la cuota inicial es negativa
      *                             o es mayor o igual al precio
-     *                             del vehículo.
+     *                             del vehiculo.
      */
     private void validateDownPayment(
             BigDecimal vehiclePrice,
@@ -154,16 +151,16 @@ public class DefaultCreditCalculator implements CreditCalculator {
     }
 
     /**
-     * Valida que el número de cuotas se encuentre dentro
-     * del rango permitido para una operación de financiamiento.
+     * Valida que el numero de cuotas se encuentre dentro
+     * del rango permitido para una operacion de financiamiento.
      *
      * <p>
      * El financiamiento debe pactarse entre 1 y 12 cuotas
-     * mensuales, incluyendo ambos límites.
+     * mensuales, incluyendo ambos limites.
      * </p>
      *
-     * @param installmentCount número de cuotas mensuales pactadas.
-     * @throws ValidationException si el número de cuotas es menor
+     * @param installmentCount numero de cuotas mensuales pactadas.
+     * @throws ValidationException si el numero de cuotas es menor
      *                             que 1 o mayor que 12.
      */
     private void validateInstallmentCount(
@@ -188,7 +185,7 @@ public class DefaultCreditCalculator implements CreditCalculator {
      * definidos para operaciones pactadas entre 5 y 12 cuotas.
      * </p>
      *
-     * @param financedAmount monto financiado de la operación.
+     * @param financedAmount monto financiado de la operacion.
      * @return tasa compensatoria mensual expresada como porcentaje.
      */
     private BigDecimal determineCompensatoryInterestRate(
@@ -224,12 +221,7 @@ public class DefaultCreditCalculator implements CreditCalculator {
             return SIXTH_RANGE_RATE;
         }
 
-        if (financedAmount.compareTo(
-                MAX_FINANCED_AMOUNT) <= 0) {
-            return SEVENTH_RANGE_RATE;
-        }
-
-        return ZERO_RATE;
+        return SEVENTH_RANGE_RATE;
     }
 
 }

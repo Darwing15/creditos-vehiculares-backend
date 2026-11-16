@@ -16,11 +16,13 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import pe.sotomayor.creditos.security.application.dto.user.request.CreateUserRequest;
 import pe.sotomayor.creditos.security.application.dto.user.request.UpdateUserRequest;
-
+import pe.sotomayor.creditos.security.application.dto.user.response.UserFilterOptions;
+import pe.sotomayor.creditos.security.application.dto.user.response.UserPageResponse;
 import pe.sotomayor.creditos.security.application.dto.user.response.UserResponse;
 
 import pe.sotomayor.creditos.security.application.usecase.user.CreateUserUseCase;
@@ -60,7 +62,8 @@ public class UserController {
      * @return usuario creado
      */
     @PostMapping
-    @PreAuthorize("hasAuthority('security:users:write') and hasAuthority('security:users:assign-role')")
+    @PreAuthorize("hasAuthority('security:users:write') " +
+            "and hasAuthority('security:users:assign-role')")
     public ResponseEntity<UserResponse> create(
             @Valid
             @RequestBody
@@ -104,6 +107,39 @@ public class UserController {
         return ResponseEntity
                 .ok(listUsersUseCase.findAll());
 
+    }
+
+    /**
+     * Consulta una pagina global de usuarios mediante el permiso de lectura de usuarios.
+     *
+     * @param q        fragmento de nombre, correo o rol
+     * @param roleId   identificador opcional de rol
+     * @param branchId identificador opcional de sucursal
+     * @param page     numero de pagina desde cero
+     * @param size     tamaño de la pagina
+     * @return pagina y totales de usuarios no eliminados
+     */
+    @GetMapping("/page")
+    @PreAuthorize("hasAuthority('security:users:read')")
+    public ResponseEntity<UserPageResponse> searchPage(
+            @RequestParam(defaultValue = "") String q,
+            @RequestParam(required = false) Long roleId,
+            @RequestParam(required = false) Long branchId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return ResponseEntity.ok(listUsersUseCase
+                .searchPage(q, roleId, branchId, page, size));
+    }
+
+    /**
+     * Consulta las opciones de filtros asociadas a usuarios no eliminados.
+     *
+     * @return roles y sucursales visibles con el permiso de lectura de usuarios
+     */
+    @GetMapping("/filter-options")
+    @PreAuthorize("hasAuthority('security:users:read')")
+    public ResponseEntity<UserFilterOptions> filterOptions() {
+        return ResponseEntity.ok(listUsersUseCase.filterOptions());
     }
 
     /**

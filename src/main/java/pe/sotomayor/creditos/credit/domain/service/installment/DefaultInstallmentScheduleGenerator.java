@@ -1,6 +1,7 @@
 package pe.sotomayor.creditos.credit.domain.service.installment;
 
 import org.springframework.stereotype.Service;
+
 import pe.sotomayor.creditos.credit.domain.model.entity.Installment;
 
 import java.math.BigDecimal;
@@ -19,11 +20,14 @@ public class DefaultInstallmentScheduleGenerator
         implements InstallmentScheduleGenerator {
 
     private final InstallmentCalculator calculator;
+    private final InstallmentTermsCalculator termsCalculator;
 
     public DefaultInstallmentScheduleGenerator(
-            InstallmentCalculator calculator) {
+            InstallmentCalculator calculator,
+            InstallmentTermsCalculator termsCalculator) {
 
         this.calculator = calculator;
+        this.termsCalculator = termsCalculator;
     }
 
     @Override
@@ -40,31 +44,11 @@ public class DefaultInstallmentScheduleGenerator
             );
         }
 
-        BigDecimal monthlyCompensatoryInterestAmount =
-                calculator.calculateMonthlyCompensatoryInterestAmount(
-                        financedAmount,
-                        compensatoryInterestRate
-                );
-
-        BigDecimal regularInstallmentAmount =
-                calculator.calculateRegularInstallmentAmount(
-                        financedAmount,
-                        installmentCount,
-                        monthlyCompensatoryInterestAmount
-                );
-
-        BigDecimal regularPrincipalAmount =
-                calculator.calculateRegularPrincipalAmount(
-                        regularInstallmentAmount,
-                        monthlyCompensatoryInterestAmount
-                );
-
-        BigDecimal lastPrincipalAmount =
-                calculator.calculateLastPrincipalAmount(
-                        financedAmount,
-                        installmentCount,
-                        regularPrincipalAmount
-                );
+        var terms = termsCalculator.calculate(
+                financedAmount, installmentCount, compensatoryInterestRate);
+        BigDecimal monthlyCompensatoryInterestAmount = terms.monthlyInterest();
+        BigDecimal regularPrincipalAmount = terms.regularPrincipal();
+        BigDecimal lastPrincipalAmount = terms.lastPrincipal();
 
         List<Installment> installments =
                 new ArrayList<>();

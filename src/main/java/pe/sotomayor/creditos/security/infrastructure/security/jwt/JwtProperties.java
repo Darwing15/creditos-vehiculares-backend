@@ -4,10 +4,8 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-
 import lombok.Getter;
 import lombok.Setter;
-
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 import org.springframework.validation.annotation.Validated;
@@ -43,6 +41,13 @@ public class JwtProperties {
     @Min(60000)
     @Max(900000)
     private Long expiration = 600000L;
+
+    /**
+     * Duracion maxima continua de la sesion, independientemente de la actividad.
+     */
+    @Min(600000)
+    @Max(86400000)
+    private long absoluteLifetime = 28800000L;
 
     /**
      * Identificador del emisor que debe coincidir al generar y verificar el token.

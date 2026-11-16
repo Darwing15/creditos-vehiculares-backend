@@ -22,6 +22,8 @@ import pe.sotomayor.creditos.credit.domain.repository.CreditApplicationRepositor
 import pe.sotomayor.creditos.credit.domain.service.CreditCalculator;
 import pe.sotomayor.creditos.credit.domain.service.creditapplication.CreditApplicationCodeGenerator;
 import pe.sotomayor.creditos.credit.domain.service.creditapplication.CreditApplicationNumberGenerator;
+import pe.sotomayor.creditos.credit.domain.service.installment.DefaultInstallmentCalculator;
+import pe.sotomayor.creditos.credit.domain.service.installment.InstallmentTermsCalculator;
 
 import pe.sotomayor.creditos.customers.domain.model.entity.Customer;
 import pe.sotomayor.creditos.customers.domain.repository.CustomerRepository;
@@ -59,6 +61,9 @@ class CreateCreditApplicationEligibilityTest {
 
     @Mock
     CreditCalculator calculator;
+
+    @Mock
+    InstallmentTermsCalculator termsCalculator;
 
     @Mock
     CreditApplicationCodeGenerator codes;
@@ -230,6 +235,37 @@ class CreateCreditApplicationEligibilityTest {
         verify(vehicles, never())
                 .save(any());
 
+        verifyNoInteractions(applications, mapper, codes, numbers);
+    }
+
+    @Test
+    void unfeasibleScheduleDoesNotReserveVehicle() {
+
+        /* Arrange */
+
+        Vehicle vehicle = vehicle(VehicleStatus.AVAILABLE, "12000.00");
+        BigDecimal financed = new BigDecimal("1.00");
+        BigDecimal rate = new BigDecimal("0.00");
+        var request = new CreateCreditApplicationRequest(1L, 2L, FinancingCurrency.PEN,
+                new BigDecimal("12000.00"), new BigDecimal("11999.00"), 2);
+        when(calculator.calculateFinancedAmount(new BigDecimal("12000.00"),
+                new BigDecimal("11999.00"))).thenReturn(financed);
+        when(calculator.calculateCompensatoryInterestRate(financed, 2)).thenReturn(rate);
+        var realTerms = new InstallmentTermsCalculator(new DefaultInstallmentCalculator());
+        when(termsCalculator.calculate(financed, 2, rate))
+                .thenAnswer(invocation -> realTerms.calculate(financed, 2, rate));
+
+        /* Act */
+
+        Throwable thrown = catchThrowable(() -> service.create(request));
+
+        /* Assert */
+
+        assertThat(thrown).isInstanceOf(ValidationException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.CREDIT_APPLICATION_UNFEASIBLE_INSTALLMENTS);
+        assertThat(vehicle.getStatus()).isEqualTo(VehicleStatus.AVAILABLE);
+        verify(vehicles, never()).save(any());
         verifyNoInteractions(applications, mapper, codes, numbers);
     }
 

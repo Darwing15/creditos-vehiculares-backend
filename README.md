@@ -20,7 +20,11 @@ El límite mensual predeterminado de 100 expresa presupuesto local, no el saldo 
 
 ## Migraciones
 
-Flyway administra la evolución del esquema; Hibernate utiliza ddl-auto=validate. La integración agregó V11__identity_document_lookup.sql, con caché de nombres y contadores técnicos. No editar una migración ya aplicada. Cualquier ampliación de comentarios del esquema se incorpora mediante una versión nueva revisada.
+Flyway administra la evolución del esquema; Hibernate utiliza ddl-auto=validate. En instalaciones nuevas, la V10 ya no crea cuentas ni sucursales. La nueva V10 tiene un checksum distinto: **no despliegues este JAR sobre una base que tenga aplicada la V10 anterior**. La documentación explica la transición con conservación de datos en una base separada.
+
+## Inicialización y despliegue
+
+Consultar [Inicialización y despliegue](docs/inicializacion-y-despliegue.md) para crear el primer administrador mediante consola o preparar una base nueva para restauración, sin contraseñas predefinidas. Los datos de prueba bajo `src/test` no se empaquetan en el JAR. Las bases anteriores requieren el procedimiento de transición documentado; no usar `flyway repair` como sustituto.
 
 ## Pruebas
 
@@ -35,3 +39,15 @@ mvn -Dtest=LookupCustomerIdentityServiceTest clean test
 ```
 
 El conteo de pruebas se registra en evidencia fechada de entrega y no constituye una meta fija. La inicialización del mapper en esa prueba debe utilizar Mappers.getMapper(IdentityLookupMapper.class).
+
+## Listado paginado de clientes
+
+Consulta [contrato de inventario, resumen y pruebas](docs/vehicles/inventario-listado-paginado.md). El catálogo previo continúa disponible.
+
+## Inventario paginado
+
+Consulta [contrato de inventario, resumen y pruebas](docs/vehicles/inventario-listado-paginado.md). El catálogo previo continúa disponible.
+
+## Solicitudes paginadas
+
+Consulta [contrato y permisos de la búsqueda de solicitudes](docs/credit/solicitudes-listado-paginado.md). La ruta anterior continúa disponible para sus consumidores.

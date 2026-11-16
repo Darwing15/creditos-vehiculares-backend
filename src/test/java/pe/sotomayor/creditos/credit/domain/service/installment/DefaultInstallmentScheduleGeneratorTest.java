@@ -17,7 +17,8 @@ class DefaultInstallmentScheduleGeneratorTest {
 
     private final DefaultInstallmentScheduleGenerator generator =
             new DefaultInstallmentScheduleGenerator(
-                    calculator
+                    calculator,
+                    new InstallmentTermsCalculator(calculator)
             );
 
     @Test

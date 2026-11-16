@@ -14,7 +14,7 @@ import pe.sotomayor.creditos.credit.application.usecase.creditsimulation.Simulat
 
 import pe.sotomayor.creditos.credit.domain.service.CreditCalculator;
 
-import pe.sotomayor.creditos.credit.domain.service.installment.InstallmentCalculator;
+import pe.sotomayor.creditos.credit.domain.service.installment.InstallmentTermsCalculator;
 
 import java.math.BigDecimal;
 
@@ -28,7 +28,7 @@ import java.math.BigDecimal;
 @Transactional(readOnly = true)
 public class SimulateCreditApplicationService implements SimulateCreditApplicationUseCase {
     private final CreditCalculator creditCalculator;
-    private final InstallmentCalculator installmentCalculator;
+    private final InstallmentTermsCalculator installmentTermsCalculator;
 
     /**
      * Calcula la misma cuota regular usada por el cronograma de cuotas.
@@ -42,11 +42,16 @@ public class SimulateCreditApplicationService implements SimulateCreditApplicati
                 request.vehiclePrice(), request.downPayment());
         BigDecimal rate = creditCalculator.calculateCompensatoryInterestRate(
                 financed, request.installmentCount());
-        BigDecimal interest = installmentCalculator.calculateMonthlyCompensatoryInterestAmount(
-                financed, rate);
-        BigDecimal installment = installmentCalculator.calculateRegularInstallmentAmount(
-                financed, request.installmentCount(), interest);
-        return new CreditSimulationResponse(request.currency(), financed, rate, interest,
-                request.installmentCount(), installment);
+        var terms = installmentTermsCalculator.calculate(
+                financed, request.installmentCount(), rate);
+
+        return new CreditSimulationResponse(
+                request.currency(),
+                financed,
+                rate,
+                terms.monthlyInterest(),
+                request.installmentCount(),
+                terms.estimatedInstallment()
+        );
     }
 }

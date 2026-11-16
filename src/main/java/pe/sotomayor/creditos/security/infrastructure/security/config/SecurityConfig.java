@@ -5,21 +5,16 @@ import jakarta.servlet.DispatcherType;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-
 import org.springframework.http.HttpMethod;
 
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
-
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-
 import org.springframework.security.config.http.SessionCreationPolicy;
-
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
@@ -156,7 +151,7 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll();
                     auth.requestMatchers(HttpMethod.GET, "/api/auth/me").authenticated();
                     auth.requestMatchers(HttpMethod.POST,
-                                    "/api/auth/change-password", "/api/auth/logout-all")
+                                    "/api/auth/change-password", "/api/auth/logout-all", "/api/auth/renew")
                             .authenticated();
                     if (docsEnabled) {
                         auth.requestMatchers("/v3/api-docs/**",
@@ -164,7 +159,7 @@ public class SecurityConfig {
                     }
                     auth.requestMatchers("/api/security/**").authenticated();
                     auth.requestMatchers(HttpMethod.GET, "/api/customers",
-                                    "/api/customers/{code}")
+                                    "/api/customers/page", "/api/customers/{code}")
                             .hasAuthority("customers:read");
                     auth.requestMatchers(HttpMethod.POST, "/api/customers",
                                     "/api/customers/identity-lookups")
@@ -172,6 +167,7 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.PUT, "/api/customers/{code}")
                             .hasAuthority("customers:write");
                     auth.requestMatchers(HttpMethod.GET, "/api/vehicles",
+                                    "/api/vehicles/page", "/api/vehicles/overview",
                                     "/api/vehicles/{code}")
                             .hasAuthority("vehicles:read");
                     auth.requestMatchers(HttpMethod.POST, "/api/vehicles")
@@ -179,6 +175,7 @@ public class SecurityConfig {
                     auth.requestMatchers(HttpMethod.PUT, "/api/vehicles/{code}")
                             .hasAuthority("vehicles:write");
                     auth.requestMatchers(HttpMethod.GET, "/api/credit-applications",
+                                    "/api/credit-applications/page",
                                     "/api/credit-applications/{applicationCode}")
                             .hasAuthority("credit-applications:read");
                     auth.requestMatchers(HttpMethod.POST, "/api/credit-applications",

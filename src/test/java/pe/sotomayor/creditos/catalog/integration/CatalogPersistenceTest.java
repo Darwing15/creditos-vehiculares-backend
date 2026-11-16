@@ -188,12 +188,20 @@ class CatalogPersistenceTest {
 
     @Test
     void customerCreateAndUpdatePersistAndPreserveItsDocument() {
+
+        /* Arrange */
+
         var created = createCustomer.create(customerRequest());
+
+        /* Act */
+
         var updated = updateCustomer.update(created.customerCode(),
                 customerUpdate(created.revision()));
         entityManager.flush();
         entityManager.clear();
         var detail = getCustomer.get(created.customerCode());
+
+        /* Assert */
 
         assertThat(detail.fullName())
                 .isEqualTo("Cliente editado");
@@ -208,10 +216,16 @@ class CatalogPersistenceTest {
 
     @Test
     void vehicleCreateAndUpdatePersistAndPreserveAvailableState() {
+
+        /* Arrange */
+
         var created = createVehicle
                 .create(
                         vehicleRequest("CT-CHASSIS-1",
                                 "CT-ENGINE-1"));
+
+        /* Act */
+
         var updated = updateVehicle
                 .update(created.vehicleCode(),
                         vehicleUpdate(created.revision()));
@@ -219,6 +233,8 @@ class CatalogPersistenceTest {
         entityManager.clear();
         var detail = getVehicle
                 .get(created.vehicleCode());
+
+        /* Assert */
 
         assertThat(detail.referencePrice()).isEqualByComparingTo("13000.00");
         assertThat(detail.status().name()).isEqualTo("AVAILABLE");
@@ -362,11 +378,23 @@ class CatalogPersistenceTest {
 
     @Test
     void vehicleDuplicateCheckExcludesOnlyTheEditedUnit() {
+
+        /* Arrange */
+
         var first = createVehicle.create(vehicleRequest("CT-CHASSIS-1", "CT-ENGINE-1"));
         createVehicle.create(vehicleRequest("CT-CHASSIS-2", "CT-ENGINE-2"));
-        assertThat(vehicles.existsIdentifiersIncludingDeleted("CT-CHASSIS-1", "CT-ENGINE-1", first.id())).isFalse();
-        assertThat(vehicles.existsIdentifiersIncludingDeleted("CT-CHASSIS-2", "CT-ENGINE-1", first.id())).isTrue();
-        assertThat(vehicles.existsIdentifiersIncludingDeleted("CT-CHASSIS-1", "CT-ENGINE-2", first.id())).isTrue();
+
+        /* Act */
+
+        boolean self = vehicles.existsIdentifiersIncludingDeleted("CT-CHASSIS-1", "CT-ENGINE-1", first.id());
+        boolean otherChassis = vehicles.existsIdentifiersIncludingDeleted("CT-CHASSIS-2", "CT-ENGINE-1", first.id());
+        boolean otherEngine = vehicles.existsIdentifiersIncludingDeleted("CT-CHASSIS-1", "CT-ENGINE-2", first.id());
+
+        /* Assert */
+
+        assertThat(self).isFalse();
+        assertThat(otherChassis).isTrue();
+        assertThat(otherEngine).isTrue();
     }
 
     @Test
@@ -406,6 +434,7 @@ class CatalogPersistenceTest {
     @Test
     @WithMockUser(authorities = {"customers:read", "vehicles:read"})
     void methodSecurityRejectsDirectWritesEvenWithoutAController() {
+
         /* Arrange */
 
         /* Act */
@@ -478,9 +507,13 @@ class CatalogPersistenceTest {
     @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     void simultaneousVehicleUpdatesAllowOnlyOneSaveFromTheSameRevision() throws Exception {
+
+        /* Arrange */
+
         var pool = Executors.newFixedThreadPool(2);
         try {
-            var created = createVehicle.create(vehicleRequest("CT-CHASSIS-1", "CT-ENGINE-1"));
+            var created = createVehicle.create(
+                    vehicleRequest("CT-CHASSIS-1", "CT-ENGINE-1"));
             var start = new CountDownLatch(1);
             Callable<String> attempt = () -> {
                 var context = SecurityContextHolder.createEmptyContext();
@@ -500,16 +533,20 @@ class CatalogPersistenceTest {
                     SecurityContextHolder.clearContext();
                 }
             };
+
+            /* Act */
+
             var first = pool.submit(attempt);
             var second = pool.submit(attempt);
             start.countDown();
+            var outcomes = List.of(first.get(20, TimeUnit.SECONDS),
+                    second.get(20, TimeUnit.SECONDS));
+            var current = getVehicle.get(created.vehicleCode());
 
-            assertThat(List.of(first.get(20, TimeUnit.SECONDS),
-                    second.get(20, TimeUnit.SECONDS)))
-                    .containsExactlyInAnyOrder("saved", "CONCURRENT_MODIFICATION");
+            /* Assert */
 
-            assertThat(getVehicle.get(created.vehicleCode()).referencePrice())
-                    .isEqualByComparingTo("13000.00");
+            assertThat(outcomes).containsExactlyInAnyOrder("saved", "CONCURRENT_MODIFICATION");
+            assertThat(current.referencePrice()).isEqualByComparingTo("13000.00");
         } finally {
             pool.shutdownNow();
             pool.awaitTermination(5, TimeUnit.SECONDS);

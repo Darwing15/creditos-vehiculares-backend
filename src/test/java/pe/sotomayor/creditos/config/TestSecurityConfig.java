@@ -1,19 +1,16 @@
 package pe.sotomayor.creditos.config;
 
 import org.springframework.boot.test.context.TestConfiguration;
-
 import org.springframework.context.annotation.Bean;
-
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-
 import org.springframework.security.web.SecurityFilterChain;
 
-/**
- * Configuración de seguridad utilizada exclusivamente durante
- * las pruebas de la capa de presentación.
+/*
+ * Configuracion de seguridad utilizada exclusivamente durante
+ * las pruebas de la capa de presentacion.
  *
  * <p>
- * Deshabilita la autenticación JWT para permitir que los
+ * Deshabilita la autenticacion JWT para permitir que los
  * controladores sean probados de manera aislada.
  * </p>
  *
@@ -22,7 +19,7 @@ import org.springframework.security.web.SecurityFilterChain;
 @TestConfiguration
 public class TestSecurityConfig {
 
-    /**
+    /*
      * Configura una cadena de seguridad que permite todas
      * las solicitudes durante las pruebas.
      *

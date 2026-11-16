@@ -22,6 +22,7 @@ import pe.sotomayor.creditos.credit.domain.service.CreditCalculator;
 import pe.sotomayor.creditos.credit.domain.service.creditapplication.CreditApplicationCodeGenerator;
 import pe.sotomayor.creditos.credit.domain.service.creditapplication.CreditApplicationNumberGenerator;
 
+import pe.sotomayor.creditos.credit.domain.service.installment.InstallmentTermsCalculator;
 import pe.sotomayor.creditos.customers.domain.repository.CustomerRepository;
 
 import pe.sotomayor.creditos.shared.error.ErrorCode;
@@ -60,6 +61,9 @@ public class CreateCreditApplicationService
     private final CreditCalculator
             creditCalculator;
 
+    private final InstallmentTermsCalculator
+            installmentTermsCalculator;
+
     private final CreditApplicationCodeGenerator
             creditApplicationCodeGenerator;
 
@@ -95,12 +99,12 @@ public class CreateCreditApplicationService
     }
 
     /**
-     * Crea una nueva solicitud de crédito a partir de los datos
-     * proporcionados y de la información administrada por el sistema.
+     * Crea una nueva solicitud de credito a partir de los datos
+     * proporcionados y de la informacion administrada por el sistema.
      *
-     * @param request información proporcionada para registrar
+     * @param request informacion proporcionada para registrar
      *                la solicitud.
-     * @return nueva solicitud de crédito pendiente.
+     * @return nueva solicitud de credito pendiente.
      */
     private CreditApplication createApplication(
             CreateCreditApplicationRequest request) {
@@ -143,6 +147,9 @@ public class CreateCreditApplicationService
                         financed,
                         request.installmentCount()
                 );
+
+        installmentTermsCalculator
+                .calculate(financed, request.installmentCount(), rate);
 
         vehicle.reserveForFinancing();
         vehicleRepository.save(vehicle);

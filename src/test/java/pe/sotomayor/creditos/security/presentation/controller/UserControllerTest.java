@@ -25,6 +25,9 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import pe.sotomayor.creditos.security.application.dto.user.request.CreateUserRequest;
 import pe.sotomayor.creditos.security.application.dto.user.request.UpdateUserRequest;
+import pe.sotomayor.creditos.security.application.dto.user.response.UserFilterOption;
+import pe.sotomayor.creditos.security.application.dto.user.response.UserFilterOptions;
+import pe.sotomayor.creditos.security.application.dto.user.response.UserPageResponse;
 import pe.sotomayor.creditos.security.application.dto.user.response.UserResponse;
 
 import pe.sotomayor.creditos.security.application.usecase.user.CreateUserUseCase;
@@ -90,19 +93,24 @@ class UserControllerTest {
 
     @Test
     void shouldCreateUserWhenPermissionIsGranted() throws Exception {
+
         /* Arrange */
+
         CreateUserRequest request = createCreateRequest();
         UserResponse expected = createResponse();
         when(create.create(request)).thenReturn(expected);
 
         /* Act */
+
         MvcResult result = mvc.perform(post("/api/security/users")
                 .with(user(createPrincipal())).contentType(MediaType.APPLICATION_JSON)
                 .content(json.writeValueAsString(request))).andReturn();
 
         /* Assert */
+
         assertThat(result.getResponse().getStatus()).isEqualTo(201);
-        assertThat(json.readValue(result.getResponse().getContentAsString(), UserResponse.class)).isEqualTo(expected);
+        assertThat(json.readValue(result.getResponse().getContentAsString(), UserResponse.class))
+                .isEqualTo(expected);
         assertThat(result.getResponse().getContentAsString()).doesNotContain("password", "tokenVersion");
         verify(create).create(request);
         verifyNoMoreInteractions(create, update, list, deactivate, jwt, users);
@@ -110,15 +118,20 @@ class UserControllerTest {
 
     @Test
     void shouldDenyCreateWhenAuthorityIsMissing() throws Exception {
+
         /* Arrange */
+
         CreateUserRequest request = createCreateRequest();
 
         /* Act */
+
         MvcResult result = mvc.perform(post("/api/security/users")
-                .with(user("reader@test.com").authorities(new SimpleGrantedAuthority("security:users:read")))
+                .with(user("reader@test.com")
+                        .authorities(new SimpleGrantedAuthority("security:users:read")))
                 .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(request))).andReturn();
 
         /* Assert */
+
         assertThat(result.getResponse().getStatus()).isEqualTo(403);
         JsonNode body = json.readTree(result.getResponse().getContentAsString());
         assertThat(body.path("errorCode").asText()).isEqualTo("FORBIDDEN");
@@ -128,19 +141,24 @@ class UserControllerTest {
 
     @Test
     void shouldUpdateUserWhenPermissionIsGranted() throws Exception {
+
         /* Arrange */
+
         UpdateUserRequest request = createUpdateRequest();
         UserResponse expected = createResponse();
         when(update.update(1L, request)).thenReturn(expected);
 
         /* Act */
+
         MvcResult result = mvc.perform(put("/api/security/users/1")
                 .with(user(createPrincipal())).contentType(MediaType.APPLICATION_JSON)
                 .content(json.writeValueAsString(request))).andReturn();
 
         /* Assert */
+
         assertThat(result.getResponse().getStatus()).isEqualTo(200);
-        assertThat(json.readValue(result.getResponse().getContentAsString(), UserResponse.class)).isEqualTo(expected);
+        assertThat(json.readValue(result.getResponse().getContentAsString(), UserResponse.class))
+                .isEqualTo(expected);
         assertThat(result.getResponse().getContentAsString()).doesNotContain("password", "tokenVersion");
         verify(update).update(1L, request);
         verifyNoMoreInteractions(create, update, list, deactivate, jwt, users);
@@ -148,15 +166,20 @@ class UserControllerTest {
 
     @Test
     void shouldDenyUpdateWhenAuthorityIsMissing() throws Exception {
+
         /* Arrange */
+
         UpdateUserRequest request = createUpdateRequest();
 
         /* Act */
+
         MvcResult result = mvc.perform(put("/api/security/users/1")
-                .with(user("reader@test.com").authorities(new SimpleGrantedAuthority("security:users:read")))
+                .with(user("reader@test.com")
+                        .authorities(new SimpleGrantedAuthority("security:users:read")))
                 .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(request))).andReturn();
 
         /* Assert */
+
         assertThat(result.getResponse().getStatus()).isEqualTo(403);
         JsonNode body = json.readTree(result.getResponse().getContentAsString());
         assertThat(body.path("errorCode").asText()).isEqualTo("FORBIDDEN");
@@ -166,18 +189,23 @@ class UserControllerTest {
 
     @Test
     void shouldListUserWhenPermissionIsGranted() throws Exception {
+
         /* Arrange */
+
         UserResponse expected = createResponse();
         when(list.findAll()).thenReturn(List.of(expected));
 
         /* Act */
+
         MvcResult result = mvc.perform(get("/api/security/users")
                 .with(user(createPrincipal()))).andReturn();
 
         /* Assert */
+
         assertThat(result.getResponse().getStatus()).isEqualTo(200);
         assertThat(json.readTree(result.getResponse().getContentAsString()).size()).isEqualTo(1);
-        assertThat(json.treeToValue(json.readTree(result.getResponse().getContentAsString()).get(0), UserResponse.class)).isEqualTo(expected);
+        assertThat(json.treeToValue(json.readTree(result.getResponse().getContentAsString()).get(0), UserResponse.class))
+                .isEqualTo(expected);
         assertThat(result.getResponse().getContentAsString()).doesNotContain("password", "tokenVersion");
         verify(list).findAll();
         verifyNoMoreInteractions(create, update, list, deactivate, jwt, users);
@@ -185,15 +213,20 @@ class UserControllerTest {
 
     @Test
     void shouldDenyListWhenAuthorityIsMissing() throws Exception {
+
         /* Arrange */
+
         String loginName = "reader@test.com";
 
         /* Act */
+
         MvcResult result = mvc.perform(get("/api/security/users")
-                .with(user("reader@test.com").authorities(new SimpleGrantedAuthority("unrelated:read"))))
+                .with(user("reader@test.com")
+                        .authorities(new SimpleGrantedAuthority("unrelated:read"))))
                 .andReturn();
 
         /* Assert */
+
         assertThat(result.getResponse().getStatus()).isEqualTo(403);
         JsonNode body = json.readTree(result.getResponse().getContentAsString());
         assertThat(body.path("errorCode").asText()).isEqualTo("FORBIDDEN");
@@ -203,15 +236,19 @@ class UserControllerTest {
 
     @Test
     void shouldDeactivateUserWhenPermissionIsGranted() throws Exception {
+
         /* Arrange */
+
         UserResponse expected = createResponse();
         when(deactivate.deactivate(1L)).thenReturn(expected);
 
         /* Act */
+
         MvcResult result = mvc.perform(patch("/api/security/users/1/deactivate")
                 .with(user(createPrincipal()))).andReturn();
 
         /* Assert */
+
         assertThat(result.getResponse().getStatus()).isEqualTo(200);
         assertThat(json.readValue(result.getResponse().getContentAsString(), UserResponse.class)).isEqualTo(expected);
         assertThat(result.getResponse().getContentAsString()).doesNotContain("password", "tokenVersion");
@@ -221,15 +258,20 @@ class UserControllerTest {
 
     @Test
     void shouldDenyDeactivateWhenAuthorityIsMissing() throws Exception {
+
         /* Arrange */
+
         String loginName = "reader@test.com";
 
         /* Act */
+
         MvcResult result = mvc.perform(patch("/api/security/users/1/deactivate")
-                .with(user("reader@test.com").authorities(new SimpleGrantedAuthority("security:users:read"))))
+                .with(user("reader@test.com")
+                        .authorities(new SimpleGrantedAuthority("security:users:read"))))
                 .andReturn();
 
         /* Assert */
+
         assertThat(result.getResponse().getStatus()).isEqualTo(403);
         JsonNode body = json.readTree(result.getResponse().getContentAsString());
         assertThat(body.path("errorCode").asText()).isEqualTo("FORBIDDEN");
@@ -239,13 +281,17 @@ class UserControllerTest {
 
     @Test
     void shouldRequireAuthenticationWhenListing() throws Exception {
+
         /* Arrange */
+
         String endpoint = "/api/security/users";
 
         /* Act */
+
         MvcResult result = mvc.perform(get(endpoint)).andReturn();
 
         /* Assert */
+
         assertThat(result.getResponse().getStatus()).isEqualTo(401);
         verifyNoInteractions(create, update, list, deactivate, jwt, users);
         verifyNoMoreInteractions(create, update, list, deactivate, jwt, users);
@@ -253,17 +299,21 @@ class UserControllerTest {
 
     @Test
     void shouldRejectPayloadWhenRequiredNameIsBlank() throws Exception {
+
         /* Arrange */
+
         CreateUserRequest valid = createCreateRequest();
         ObjectNode payload = json.valueToTree(valid);
         payload.put("fullName", "");
 
         /* Act */
+
         MvcResult result = mvc.perform(post("/api/security/users")
                 .with(user(createPrincipal())).contentType(MediaType.APPLICATION_JSON)
                 .content(json.writeValueAsString(payload))).andReturn();
 
         /* Assert */
+
         assertThat(result.getResponse().getStatus()).isEqualTo(400);
         verifyNoInteractions(create, update, list, deactivate, jwt, users);
         verifyNoMoreInteractions(create, update, list, deactivate, jwt, users);
@@ -271,15 +321,20 @@ class UserControllerTest {
 
     @Test
     void shouldDenyCreationWhenAssignRolePermissionIsMissing() throws Exception {
+
         /* Arrange */
+
         CreateUserRequest request = createCreateRequest();
 
         /* Act */
+
         MvcResult result = mvc.perform(post("/api/security/users")
-                .with(user("writer@test.com").authorities(new SimpleGrantedAuthority("security:users:write")))
+                .with(user("writer@test.com")
+                        .authorities(new SimpleGrantedAuthority("security:users:write")))
                 .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(request))).andReturn();
 
         /* Assert */
+
         assertThat(result.getResponse().getStatus()).isEqualTo(403);
         verifyNoInteractions(create, update, list, deactivate, jwt, users);
         verifyNoMoreInteractions(create, update, list, deactivate, jwt, users);
@@ -287,16 +342,21 @@ class UserControllerTest {
 
     @Test
     void shouldRejectCreationWhenPasswordExceedsUtf8ByteLimit() throws Exception {
+
         /* Arrange */
+
         CreateUserRequest valid = createCreateRequest();
-        CreateUserRequest request = new CreateUserRequest(valid.fullName(), valid.email(), "á".repeat(37), valid.roleId(), valid.branchId());
+        CreateUserRequest request = new CreateUserRequest(
+                valid.fullName(), valid.email(), "á".repeat(37), valid.roleId(), valid.branchId());
 
         /* Act */
+
         MvcResult result = mvc.perform(post("/api/security/users")
                 .with(user(createPrincipal())).contentType(MediaType.APPLICATION_JSON)
                 .content(json.writeValueAsString(request))).andReturn();
 
         /* Assert */
+
         assertThat(result.getResponse().getStatus()).isEqualTo(400);
         verifyNoInteractions(create, update, list, deactivate, jwt, users);
         verifyNoMoreInteractions(create, update, list, deactivate, jwt, users);
@@ -304,16 +364,21 @@ class UserControllerTest {
 
     @Test
     void shouldAcceptUpdateWithoutAssignRoleAuthorityWhenServiceAllowsIt() throws Exception {
+
         /* Arrange */
+
         UpdateUserRequest request = createUpdateRequest();
         when(update.update(1L, request)).thenReturn(createResponse());
 
         /* Act */
+
         MvcResult result = mvc.perform(put("/api/security/users/1")
-                .with(user("writer@test.com").authorities(new SimpleGrantedAuthority("security:users:write")))
+                .with(user("writer@test.com")
+                        .authorities(new SimpleGrantedAuthority("security:users:write")))
                 .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(request))).andReturn();
 
         /* Assert */
+
         assertThat(result.getResponse().getStatus()).isEqualTo(200);
         verify(update).update(1L, request);
         verifyNoMoreInteractions(create, update, list, deactivate, jwt, users);
@@ -321,16 +386,21 @@ class UserControllerTest {
 
     @Test
     void shouldReturnControlledErrorWhenRecordIsMissing() throws Exception {
+
         /* Arrange */
+
         UpdateUserRequest request = createUpdateRequest();
-        when(update.update(1L, request)).thenThrow(new ResourceNotFoundException(ErrorCode.USER_NOT_FOUND, "missing"));
+        when(update.update(1L, request))
+                .thenThrow(new ResourceNotFoundException(ErrorCode.USER_NOT_FOUND, "missing"));
 
         /* Act */
+
         MvcResult result = mvc.perform(put("/api/security/users/1")
                 .with(user(createPrincipal())).contentType(MediaType.APPLICATION_JSON)
                 .content(json.writeValueAsString(request))).andReturn();
 
         /* Assert */
+
         assertThat(result.getResponse().getStatus()).isEqualTo(404);
         JsonNode body = json.readTree(result.getResponse().getContentAsString());
         assertThat(body.path("errorCode").asText()).isEqualTo("USER_NOT_FOUND");
@@ -341,16 +411,21 @@ class UserControllerTest {
 
     @Test
     void shouldReturnControlledErrorWhenVersionIsStale() throws Exception {
+
         /* Arrange */
+
         UpdateUserRequest request = createUpdateRequest();
-        when(update.update(1L, request)).thenThrow(new OptimisticLockingFailureException("private SQL"));
+        when(update.update(1L, request))
+                .thenThrow(new OptimisticLockingFailureException("private SQL"));
 
         /* Act */
+
         MvcResult result = mvc.perform(put("/api/security/users/1")
                 .with(user(createPrincipal())).contentType(MediaType.APPLICATION_JSON)
                 .content(json.writeValueAsString(request))).andReturn();
 
         /* Assert */
+
         assertThat(result.getResponse().getStatus()).isEqualTo(409);
         JsonNode body = json.readTree(result.getResponse().getContentAsString());
         assertThat(body.path("errorCode").asText()).isEqualTo("CONCURRENT_MODIFICATION");
@@ -361,22 +436,89 @@ class UserControllerTest {
 
     @Test
     void shouldReturnControlledErrorWhenDatabaseConstraintFails() throws Exception {
+
         /* Arrange */
+
         UpdateUserRequest request = createUpdateRequest();
-        when(update.update(1L, request)).thenThrow(new DataIntegrityViolationException("private SQL"));
+        when(update.update(1L, request))
+                .thenThrow(new DataIntegrityViolationException("private SQL"));
 
         /* Act */
+
         MvcResult result = mvc.perform(put("/api/security/users/1")
                 .with(user(createPrincipal())).contentType(MediaType.APPLICATION_JSON)
                 .content(json.writeValueAsString(request))).andReturn();
 
         /* Assert */
+
         assertThat(result.getResponse().getStatus()).isEqualTo(409);
         JsonNode body = json.readTree(result.getResponse().getContentAsString());
         assertThat(body.path("errorCode").asText()).isEqualTo("DATA_INTEGRITY_CONFLICT");
         assertThat(body.path("message").asText()).doesNotContain("private SQL");
         verify(update).update(1L, request);
         verifyNoMoreInteractions(create, update, list, deactivate, jwt, users);
+    }
+
+    @Test
+    void pagedUsersAndFilterOptionsRequireOnlyUserReadPermission() throws Exception {
+
+        /* Arrange */
+
+        var account = createResponse();
+        var options = new UserFilterOptions(
+                List.of(new UserFilterOption(2L, "Operador")),
+                List.of(new UserFilterOption(3L, "Lima")));
+        when(list.searchPage("Ana", 2L, 3L, 0, 10)).thenReturn(
+                new UserPageResponse(List.of(account), 0, 10, 1, 1));
+        when(list.filterOptions()).thenReturn(options);
+        var reader = user("lector@test.invalid")
+                .authorities(new SimpleGrantedAuthority("security:users:read"));
+
+        /* Act */
+
+        var page = mvc.perform(get("/api/security/users/page")
+                .param("q", "Ana")
+                .param("roleId", "2")
+                .param("branchId", "3")
+                .with(reader))
+                .andReturn();
+        var filters = mvc.perform(get("/api/security/users/filter-options")
+                .with(reader)).andReturn();
+
+        /* Assert */
+
+        assertThat(page.getResponse().getStatus()).isEqualTo(200);
+        assertThat(json.readTree(page.getResponse().getContentAsString()).path("totalElements").asInt())
+                .isEqualTo(1);
+        assertThat(page.getResponse().getContentAsString()).doesNotContain("password", "tokenVersion");
+        assertThat(filters.getResponse().getStatus()).isEqualTo(200);
+        assertThat(json.readTree(filters.getResponse().getContentAsString()).path("roles").size())
+                .isEqualTo(1);
+    }
+
+    @Test
+    void pagedUsersAndFiltersDenyMissingPermission() throws Exception {
+
+        /* Arrange */
+
+        var reader = user("lector@test.invalid")
+                .authorities(new SimpleGrantedAuthority("customers:read"));
+
+        /* Act */
+
+        var page = mvc.perform(get("/api/security/users/page")
+                .with(reader)).andReturn();
+        var filters = mvc.perform(get("/api/security/users/filter-options")
+                .with(reader)).andReturn();
+        var anonymous = mvc.perform(get("/api/security/users/page"))
+                .andReturn();
+
+        /* Assert */
+
+        assertThat(page.getResponse().getStatus()).isEqualTo(403);
+        assertThat(filters.getResponse().getStatus()).isEqualTo(403);
+        assertThat(anonymous.getResponse().getStatus()).isEqualTo(401);
+        verifyNoInteractions(list);
     }
 
     private SecurityPrincipal createPrincipal() {

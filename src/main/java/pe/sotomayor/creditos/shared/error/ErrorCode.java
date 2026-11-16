@@ -49,15 +49,15 @@ public enum ErrorCode {
     NEW_PASSWORD_MUST_BE_DIFFERENT,
 
     /**
-     * La solicitud contiene un código de permiso ajeno al catálogo admitido.
+     * La solicitud contiene un codigo de permiso ajeno al catalogo admitido.
      */
     INVALID_PERMISSION,
     /**
-     * La operación dejaría el sistema sin un administrador de seguridad operativo.
+     * La operacion dejaria el sistema sin un administrador de seguridad operativo.
      */
     LAST_SECURITY_ADMIN_REQUIRED,
     /**
-     * El actor intentó desactivar el usuario con el que está operando.
+     * El actor intento desactivar el usuario con el que esta operando.
      */
     SECURITY_SELF_DEACTIVATION,
 
@@ -68,6 +68,8 @@ public enum ErrorCode {
     CUSTOMER_NOT_FOUND,
 
     CUSTOMER_ALREADY_EXISTS,
+
+    CUSTOMER_INVALID_CE,
 
     IDENTITY_DOCUMENT_INVALID,
 
@@ -118,6 +120,8 @@ public enum ErrorCode {
     CREDIT_APPLICATION_INVALID_COMPENSATORY_INTEREST_RATE,
 
     CREDIT_APPLICATION_INVALID_INSTALLMENT_COUNT,
+
+    CREDIT_APPLICATION_UNFEASIBLE_INSTALLMENTS,
 
     CREDIT_APPLICATION_NOT_FOUND,
 
@@ -174,12 +178,12 @@ public enum ErrorCode {
     FORBIDDEN,
 
     /**
-     * La escritura no pudo confirmarse porque otra transacción modificó el registro.
+     * La escritura no pudo confirmarse porque otra transaccion modifico el registro.
      */
     CONCURRENT_MODIFICATION,
 
     /**
-     * Una restricción persistente impide completar la operación con los datos recibidos.
+     * Una restriccion persistente impide completar la operacion con los datos recibidos.
      */
     DATA_INTEGRITY_CONFLICT,
 

@@ -130,8 +130,12 @@ class CreditCatalogAuthorizationTest {
     @ParameterizedTest
     @ValueSource(strings = {
             "/api/customers",
+            "/api/customers/page",
             "/api/vehicles",
-            "/api/credit-applications?status=PENDING"
+            "/api/vehicles/page",
+            "/api/vehicles/overview",
+            "/api/credit-applications?status=PENDING",
+            "/api/credit-applications/page?status=PENDING"
     })
     void anonymousCannotRead(String path) throws Exception {
 
@@ -150,8 +154,12 @@ class CreditCatalogAuthorizationTest {
     @ParameterizedTest
     @ValueSource(strings = {
             "/api/customers",
+            "/api/customers/page",
             "/api/vehicles",
-            "/api/credit-applications?status=PENDING"
+            "/api/vehicles/page",
+            "/api/vehicles/overview",
+            "/api/credit-applications?status=PENDING",
+            "/api/credit-applications/page?status=PENDING"
     })
     @WithMockUser(roles = "ADMIN")
     void roleNameDoesNotGrantAccess(String path) throws Exception {
@@ -171,8 +179,12 @@ class CreditCatalogAuthorizationTest {
     @ParameterizedTest
     @ValueSource(strings = {
             "/api/customers",
+            "/api/customers/page",
             "/api/vehicles",
-            "/api/credit-applications?status=PENDING"
+            "/api/vehicles/page",
+            "/api/vehicles/overview",
+            "/api/credit-applications?status=PENDING",
+            "/api/credit-applications/page?status=PENDING"
     })
     @WithMockUser(authorities = {
             "customers:read",

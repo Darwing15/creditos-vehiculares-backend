@@ -10,14 +10,16 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import pe.sotomayor.creditos.customers.application.dto.request.CreateCustomerRequest;
 import pe.sotomayor.creditos.customers.application.dto.request.UpdateCustomerRequest;
 
 import pe.sotomayor.creditos.customers.application.dto.response.CustomerOptionResponse;
+import pe.sotomayor.creditos.customers.application.dto.response.CustomerPageResponse;
 import pe.sotomayor.creditos.customers.application.dto.response.CustomerResponse;
 
 import pe.sotomayor.creditos.customers.application.usecase.CreateCustomerUseCase;
@@ -54,6 +56,22 @@ public class CustomerController {
     @GetMapping
     public ResponseEntity<List<CustomerOptionResponse>> listActive() {
         return ResponseEntity.ok(listCustomers.listActive());
+    }
+
+    /**
+     * Consulta clientes activos de la sucursal autenticada con paginacion.
+     *
+     * @param q    fragmento literal de busqueda
+     * @param page numero de pagina desde cero
+     * @param size tamaño de la pagina
+     * @return pagina y totales de clientes visibles
+     */
+    @GetMapping("/page")
+    public ResponseEntity<CustomerPageResponse> listPage(
+            @RequestParam(defaultValue = "") String q,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return ResponseEntity.ok(listCustomers.searchPage(q, page, size));
     }
 
     /**

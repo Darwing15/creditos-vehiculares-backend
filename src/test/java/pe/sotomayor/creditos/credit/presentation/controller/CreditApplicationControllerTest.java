@@ -33,6 +33,8 @@ import pe.sotomayor.creditos.credit.application.usecase.creditapplication.Reject
 import pe.sotomayor.creditos.credit.application.usecase.creditsimulation.SimulateCreditApplicationUseCase;
 import pe.sotomayor.creditos.credit.domain.model.enumeration.CreditApplicationStatus;
 import pe.sotomayor.creditos.credit.domain.model.enumeration.FinancingCurrency;
+import pe.sotomayor.creditos.shared.error.ErrorCode;
+import pe.sotomayor.creditos.shared.exception.ValidationException;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -90,6 +92,31 @@ class CreditApplicationControllerTest {
     @MockitoBean
     private SimulateCreditApplicationUseCase
             simulateCreditApplicationUseCase;
+
+    @Test
+    void shouldReturnBusinessCodeForUnfeasibleSchedule() throws Exception {
+
+        /* Arrange */
+
+        CreateCreditApplicationRequest request = createRequest();
+        when(createCreditApplicationUseCase.create(request))
+                .thenThrow(new ValidationException(
+                        ErrorCode.CREDIT_APPLICATION_UNFEASIBLE_INSTALLMENTS, "Invalid schedule"));
+
+        /* Act */
+
+        var result = mockMvc.perform(
+                post("/api/credit-applications")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)));
+
+        /* Assert */
+
+        result
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode")
+                        .value("CREDIT_APPLICATION_UNFEASIBLE_INSTALLMENTS"));
+    }
 
     @Test
     void shouldCreateCreditApplication() throws Exception {
